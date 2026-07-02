@@ -7,6 +7,7 @@
 - [x] 就医路径推荐
 - [ ] 报告 OCR 识别
 - [x] 医学知识库 RAG
+- [x] GitHub Actions 自动测试
 - [ ] 前端页面
 - [x] Docker 部署
 - [x] 单元测试
