@@ -1,0 +1,38 @@
+[
+  {
+    "id": "low_cold_cough",
+    "title": "普通感冒/咳嗽类低风险",
+    "risk_level": "low",
+    "input": "我咳嗽两天了，有点流鼻涕，没有胸痛，也没有呼吸困难，应该挂什么科？",
+    "expected_output": {
+      "risk_level": "low",
+      "recommended_department": "呼吸内科",
+      "need_followup": true,
+      "summary": "普通呼吸道症状，无明显高危信号，建议按普通门诊流程就诊。"
+    }
+  },
+  {
+    "id": "medium_stomach_fever",
+    "title": "胃痛/发热类中风险",
+    "risk_level": "medium",
+    "input": "我胃痛持续三天了，今天还有点发热和恶心，应该去哪个科？",
+    "expected_output": {
+      "risk_level": "medium",
+      "recommended_department": "消化内科",
+      "need_followup": true,
+      "summary": "胃痛持续多天并伴随发热，建议尽快到消化内科就诊。"
+    }
+  },
+  {
+    "id": "high_chest_breathing",
+    "title": "胸痛/呼吸困难类高风险",
+    "risk_level": "high",
+    "input": "我突然胸痛，喘不上气，还有明显呼吸困难，现在应该怎么办？",
+    "expected_output": {
+      "risk_level": "high",
+      "recommended_department": "急诊科",
+      "need_followup": false,
+      "summary": "胸痛伴呼吸困难属于高风险信号，应优先急诊或立即联系急救。"
+    }
+  }
+]

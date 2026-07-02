@@ -1,0 +1,52 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Environment and local config
+.env
+project_config/.env
+*.env
+
+# Logs and runtime data
+logs/
+.langgraph_api/
+vector_db/
+
+# Local caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.cache/
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Generated resume/export artifacts kept out of the open-source demo
+rendered_resume*/
+resume_*.pdf
+resume_*.html
+resume_*.txt
+resume_*.jpeg
+resume_extract.files/
+*.doc
+*.docx
+add_resume_project.py
+add_xray_project.py
+add_independent_internship_box.py
+append_projects_to_original_doc.ps1
+build_clean_resume*.py
+replace_internship_box*.py
+run_append_projects*.py
+
+# Generated static exports
+docs/exported_site/

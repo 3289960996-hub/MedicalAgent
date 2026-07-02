@@ -1,0 +1,241 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>概念设计 - 玻璃态科技风</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: "Inter", "PingFang SC", "Microsoft YaHei", sans-serif;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #eef5ff 0%, #e8f0fe 40%, #f0eaff 100%);
+  color: #1a2a3a;
+  overflow-x: hidden;
+}
+.bg-decoration { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+.bg-orb-1 {
+  position: absolute;
+  width: 550px; height: 550px;
+  left: -150px; top: -120px;
+  background: radial-gradient(circle, rgba(6, 182, 212, 0.10), transparent 60%);
+  border-radius: 50%;
+}
+.bg-orb-2 {
+  position: absolute;
+  width: 450px; height: 450px;
+  right: -100px; top: 20%;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.08), transparent 60%);
+  border-radius: 50%;
+}
+.bg-orb-3 {
+  position: absolute;
+  width: 500px; height: 500px;
+  left: 40%; bottom: -120px;
+  background: radial-gradient(circle, rgba(14, 165, 233, 0.07), transparent 60%);
+  border-radius: 50%;
+}
+.page-shell { position: relative; z-index: 1; width: min(1220px, calc(100% - 32px)); margin: 0 auto; padding: 28px 0 48px; }
+.hero-panel {
+  display: flex; justify-content: space-between; align-items: center; gap: 24px;
+  padding: 28px 36px; border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.60);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.75), rgba(240, 248, 255, 0.55));
+  backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+  box-shadow: 0 8px 40px rgba(30, 60, 120, 0.08), 0 1px 0 rgba(255, 255, 255, 0.80);
+  overflow: hidden;
+}
+.hero-panel::before {
+  content: "";
+  position: absolute; inset: 0;
+  background: linear-gradient(90deg, rgba(6, 182, 212, 0.04), transparent 40%, rgba(99, 102, 241, 0.04));
+  pointer-events: none;
+}
+.hero-badge {
+  display: inline-flex; align-items: center; gap: 8px;
+  margin-bottom: 10px; padding: 5px 14px 5px 6px; border-radius: 999px;
+  border: 1px solid rgba(6, 182, 212, 0.20);
+  background: rgba(255, 255, 255, 0.60);
+  font-size: 11px; font-weight: 700; color: #0891b2;
+  text-transform: uppercase; letter-spacing: 0.05em;
+}
+.hero-badge .gem { width: 8px; height: 8px; border-radius: 50%; background: linear-gradient(135deg, #06b6d4, #6366f1); }
+.hero-panel h1 {
+  margin-bottom: 10px;
+  font-size: clamp(32px, 4.2vw, 48px); font-weight: 800; line-height: 1.08; letter-spacing: -0.02em;
+  background: linear-gradient(135deg, #0c4a6e, #0891b2 40%, #6366f1);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.hero-subtitle { color: #5a7898; font-size: 15px; line-height: 1.5; margin-bottom: 8px; }
+.hero-safety { display: inline-flex; align-items: center; gap: 6px; color: #d97706; font-size: 12px; }
+.hero-safety::before { content: "✦"; font-size: 8px; }
+.status-pill {
+  display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.50);
+  background: rgba(255, 255, 255, 0.50); color: #486581; font-size: 12px; font-weight: 600;
+  backdrop-filter: blur(8px);
+}
+.status-pill .pulse { width: 8px; height: 8px; border-radius: 50%; background: #059669; box-shadow: 0 0 0 5px rgba(5, 150, 105, 0.12); }
+.main-grid { display: grid; grid-template-columns: minmax(400px, 1.1fr) minmax(400px, 1fr); gap: 24px; margin-top: 24px; }
+.panel {
+  border-radius: 20px; padding: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  background: rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+  box-shadow: 0 4px 28px rgba(30, 60, 120, 0.06), 0 1px 0 rgba(255, 255, 255, 0.90);
+  transition: all 0.3s;
+}
+.panel:hover { background: rgba(255, 255, 255, 0.80); box-shadow: 0 8px 40px rgba(30, 60, 120, 0.10), 0 1px 0 rgba(255, 255, 255, 0.90); transform: translateY(-2px); }
+.panel-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 18px; }
+.panel-kicker {
+  margin-bottom: 6px; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; color: #0891b2;
+  text-transform: uppercase; display: inline-flex; align-items: center; gap: 6px;
+}
+.panel-kicker::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: linear-gradient(135deg, #06b6d4, #6366f1); }
+.panel-heading h2 { font-size: 19px; font-weight: 700; color: #1a2a3a; }
+.counter {
+  padding: 5px 14px; border-radius: 999px; background: rgba(6, 182, 212, 0.06);
+  border: 1px solid rgba(6, 182, 212, 0.12); color: #0891b2; font-size: 11px; font-weight: 700; white-space: nowrap;
+}
+textarea {
+  width: 100%; min-height: 110px; max-height: 260px; padding: 16px; border-radius: 14px;
+  border: 1.5px solid rgba(6, 182, 212, 0.15); background: rgba(255, 255, 255, 0.80);
+  color: #1a2a3a; font-size: 14px; line-height: 1.7; resize: vertical; outline: none; font-family: inherit; transition: all 0.2s;
+}
+textarea:focus { border-color: rgba(6, 182, 212, 0.40); box-shadow: 0 0 0 5px rgba(6, 182, 212, 0.08); }
+textarea::placeholder { color: #8ba8c0; }
+.actions { display: grid; grid-template-columns: 1fr auto; gap: 10px; margin-top: 16px; }
+.primary-btn {
+  min-height: 44px; padding: 0 26px; border: none; border-radius: 14px;
+  background: linear-gradient(135deg, #0891b2, #6366f1); color: #fff; font-weight: 700; font-size: 14px;
+  cursor: pointer; transition: all 0.25s; box-shadow: 0 6px 24px rgba(8, 145, 178, 0.25);
+}
+.primary-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 32px rgba(8, 145, 178, 0.30); }
+.secondary-btn {
+  min-height: 44px; padding: 0 20px; border: 1.5px solid rgba(6, 182, 212, 0.15); border-radius: 14px;
+  background: rgba(255, 255, 255, 0.50); color: #5a7898; font-weight: 600; font-size: 14px; cursor: pointer; transition: all 0.2s;
+}
+.secondary-btn:hover { border-color: rgba(6, 182, 212, 0.30); color: #0891b2; background: rgba(255, 255, 255, 0.70); }
+.loading-bar {
+  display: flex; align-items: center; gap: 12px; margin-top: 16px; padding: 14px 18px; border-radius: 14px;
+  border: 1px solid rgba(6, 182, 212, 0.15); background: rgba(255, 255, 255, 0.50);
+}
+.loading-bar .pulse-bar { flex: 1; height: 4px; border-radius: 2px; background: linear-gradient(90deg, #06b6d4, #6366f1, #06b6d4); background-size: 200% 100%; animation: shimmer 1.5s ease-in-out infinite; }
+@keyframes shimmer { 0% { background-position: 0% 0; } 100% { background-position: 200% 0; } }
+.quick-block { margin-top: 20px; }
+.quick-block h3 { margin-bottom: 10px; color: #5a7898; font-size: 14px; font-weight: 600; }
+.examples { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.example-btn {
+  padding: 9px 14px; border: 1px solid rgba(6, 182, 212, 0.10); border-radius: 12px;
+  background: rgba(255, 255, 255, 0.45); color: #5a7898; font-size: 13px; font-weight: 500;
+  text-align: left; cursor: pointer; line-height: 1.4; transition: all 0.2s;
+}
+.example-btn:hover { border-color: rgba(6, 182, 212, 0.25); background: rgba(255, 255, 255, 0.65); color: #0891b2; }
+.result-card {
+  border-radius: 16px; padding: 20px; border: 1px solid rgba(255, 255, 255, 0.50);
+  background: rgba(255, 255, 255, 0.45); margin-bottom: 14px; transition: all 0.25s;
+}
+.result-card:hover { background: rgba(255, 255, 255, 0.60); }
+.result-card h3 { margin-bottom: 12px; font-size: 15px; font-weight: 700; color: #1a2a3a; display: flex; align-items: center; gap: 10px; }
+.result-card h3 .accent-line { width: 4px; height: 18px; border-radius: 2px; background: linear-gradient(to bottom, #06b6d4, #6366f1); }
+.answer-box { padding: 16px; border-radius: 14px; background: rgba(255, 255, 255, 0.60); border: 1px solid rgba(6, 182, 212, 0.08); font-size: 15px; line-height: 1.7; }
+.metric-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 16px; }
+.metric-card { padding: 14px 8px; border-radius: 14px; background: rgba(255, 255, 255, 0.50); border: 1px solid rgba(6, 182, 212, 0.06); text-align: center; }
+.metric-card .label { display: block; font-size: 10px; font-weight: 600; color: #7a9ab8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+.metric-card .value { display: inline-flex; align-items: center; padding: 5px 14px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+.value-emergency { background: rgba(239, 68, 68, 0.08); color: #dc2626; }
+.value-normal { background: rgba(5, 150, 105, 0.08); color: #059669; }
+.value-blue { background: rgba(8, 145, 178, 0.08); color: #0891b2; }
+.value-muted { background: rgba(122, 154, 184, 0.10); color: #7a9ab8; }
+.floor-map { height: 200px; border-radius: 14px; border: 1px solid rgba(6, 182, 212, 0.10); background: rgba(255, 255, 255, 0.40); margin-top: 10px; display: flex; align-items: center; justify-content: center; color: #8ba8c0; font-size: 13px; }
+.assist-section { margin-top: 36px; padding-top: 32px; border-top: 1px solid rgba(6, 182, 212, 0.10); }
+.assist-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 18px; }
+@media (max-width: 1024px) { .main-grid, .assist-grid { grid-template-columns: 1fr; } }
+@media (max-width: 768px) { .hero-panel { flex-direction: column; padding: 24px; } .metric-grid { grid-template-columns: repeat(2, 1fr); } .examples { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="bg-decoration">
+  <div class="bg-orb-1"></div>
+  <div class="bg-orb-2"></div>
+  <div class="bg-orb-3"></div>
+</div>
+<div class="page-shell">
+  <header class="hero-panel">
+    <div>
+      <div class="hero-badge"><span class="gem"></span> Medical Triage Agent</div>
+      <h1>医疗导诊 Agent 系统</h1>
+      <p class="hero-subtitle">基于 Qwen + RAG + 工具调用的智能导诊原型 · 玻璃态科技版概念</p>
+      <span class="hero-safety">本系统仅提供导诊和健康科普参考，不能替代医生诊断</span>
+    </div>
+    <div class="status-pill"><span class="pulse"></span> Agent Online</div>
+  </header>
+  <div class="main-grid">
+    <div class="panel">
+      <div class="panel-heading">
+        <div>
+          <p class="panel-kicker">智能导诊输入</p>
+          <h2>描述症状或就医问题</h2>
+        </div>
+        <span class="counter">0 字符</span>
+      </div>
+      <textarea placeholder="例如：我膝盖里面感觉很胀痛"></textarea>
+      <div class="actions">
+        <button class="primary-btn">提交分析</button>
+        <button class="secondary-btn">清空</button>
+      </div>
+      <div class="loading-bar"><div class="pulse-bar"></div><span style="font-size:13px;color:#0891b2;font-weight:500;white-space:nowrap;">分析中...</span></div>
+      <div class="quick-block">
+        <h3>快捷问题</h3>
+        <div class="examples">
+          <button class="example-btn">我耳朵疼，应该挂什么科？</button>
+          <button class="example-btn">我眼睛红还疼，应该挂什么科？</button>
+          <button class="example-btn">我牙疼，应该挂什么科？</button>
+          <button class="example-btn">我尿尿的时候疼，应该挂什么科？</button>
+          <button class="example-btn">我皮肤很痒还起红疹，应该挂什么科？</button>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-heading">
+        <div>
+          <p class="panel-kicker">患者查询结果</p>
+          <h2>导诊结论与就医指引</h2>
+        </div>
+        <span class="counter">等待提问</span>
+      </div>
+      <div class="result-card">
+        <h3><span class="accent-line"></span>导诊结论</h3>
+        <div class="answer-box">请输入问题并提交，系统会在这里显示导诊结论、就医指引和模拟楼层地图。</div>
+        <div class="metric-grid">
+          <div class="metric-card"><span class="label">风险等级</span><span class="value value-muted">暂无</span></div>
+          <div class="metric-card"><span class="label">推荐科室</span><span class="value value-blue">暂无</span></div>
+          <div class="metric-card"><span class="label">置信度</span><span class="value value-muted">暂无</span></div>
+          <div class="metric-card"><span class="label">急诊/转人工</span><span class="value value-muted">暂无</span></div>
+        </div>
+      </div>
+      <div class="result-card">
+        <h3><span class="accent-line"></span>模拟楼层地图</h3>
+        <div class="floor-map">楼层地图将在此展示</div>
+      </div>
+      <div class="result-card">
+        <h3><span class="accent-line"></span>参考来源</h3>
+        <p style="color:#8ba8c0;font-size:13px;">暂无参考来源</p>
+      </div>
+    </div>
+  </div>
+  <div class="assist-section">
+    <div style="margin-bottom:16px;">
+      <p class="panel-kicker">Patient Assist Demo</p>
+      <h2 style="font-size:20px;font-weight:700;color:#1a2a3a;margin-bottom:4px;">患者辅助功能区</h2>
+      <p style="color:#8ba8c0;font-size:13px;">当前为演示功能，实际结果以医院官方系统为准。</p>
+    </div>
+    <div class="assist-grid">
+      <div class="panel"><h3 style="font-size:16px;font-weight:700;color:#1a2a3a;margin-bottom:10px;">一键缴费</h3><p style="color:#8ba8c0;font-size:13px;">当前为演示功能...</p></div>
+      <div class="panel"><h3 style="font-size:16px;font-weight:700;color:#1a2a3a;margin-bottom:10px;">电子资料保存</h3><p style="color:#8ba8c0;font-size:13px;">当前为演示功能...</p></div>
+      <div class="panel"><h3 style="font-size:16px;font-weight:700;color:#1a2a3a;margin-bottom:10px;">资料快速调阅</h3><p style="color:#8ba8c0;font-size:13px;">当前为演示功能...</p></div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

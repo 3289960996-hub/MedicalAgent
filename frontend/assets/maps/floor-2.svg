@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540">
+  <rect width="960" height="540" fill="#f7fbfb"/>
+  <text x="26" y="46" font-family="Arial,'Microsoft YaHei'" font-size="26" font-weight="700" fill="#173b56">2F 门诊楼平面图</text>
+  <rect x="24" y="66" width="66" height="36" rx="8" fill="#27aa91"/><text x="43" y="91" font-size="22" font-weight="700" fill="#fff">2F</text>
+  <rect x="80" y="110" width="790" height="345" rx="6" fill="#fff" stroke="#ccdce2" stroke-width="2"/>
+  <rect x="110" y="135" width="145" height="80" rx="8" fill="#eef8ff" stroke="#9bc6df"/><text x="129" y="183" font-size="20" font-weight="700" fill="#267098">全科医学科</text>
+  <rect x="280" y="135" width="145" height="80" rx="8" fill="#eef8ff" stroke="#9bc6df"/><text x="333" y="183" font-size="20" font-weight="700" fill="#267098">儿科</text>
+  <rect x="450" y="135" width="145" height="80" rx="8" fill="#eef8ff" stroke="#9bc6df"/><text x="501" y="183" font-size="20" font-weight="700" fill="#267098">口腔科</text>
+  <rect x="620" y="135" width="145" height="80" rx="8" fill="#ddf5ef" stroke="#35ad94"/><text x="671" y="183" font-size="20" font-weight="700" fill="#0c806c">肛肠科</text>
+  <rect x="620" y="270" width="145" height="80" rx="8" fill="#eef8ff" stroke="#9bc6df"/><text x="671" y="318" font-size="20" font-weight="700" fill="#267098">普外科</text>
+  <rect x="155" y="280" width="300" height="70" rx="12" fill="#f3f7fb" stroke="#d4dfe8"/><text x="253" y="323" font-size="22" font-weight="700" fill="#29485e">候诊区</text>
+  <rect x="120" y="380" width="130" height="50" rx="8" fill="#eef3f6" stroke="#a9bdc8"/><text x="162" y="412" font-size="18" font-weight="700" fill="#29485e">电梯</text>
+  <rect x="300" y="380" width="145" height="50" rx="8" fill="#e5f7f2" stroke="#35ad94"/><text x="333" y="412" font-size="18" font-weight="700" fill="#0c806c">楼层导诊</text>
+  <path d="M185 380 V315 H520 V218 H692" fill="none" stroke="#1aa98f" stroke-width="8" stroke-dasharray="14 10" stroke-linecap="round"/>
+  <polygon points="692,218 672,206 672,230" fill="#1aa98f"/>
+  <circle cx="185" cy="380" r="18" fill="#1aa98f"/><circle cx="185" cy="380" r="7" fill="#fff"/>
+  <rect x="820" y="86" width="112" height="360" rx="14" fill="#fff" stroke="#e3edf1"/>
+  <text x="846" y="125" font-size="18" font-weight="700" fill="#173b56">导航信息</text>
+  <text x="846" y="168" font-size="14" fill="#607487">电梯到达2F</text>
+  <text x="846" y="206" font-size="14" fill="#607487">经候诊区</text>
+  <text x="846" y="244" font-size="14" fill="#607487">前往目标诊室</text>
+</svg>

@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智医分诊助手</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="conversation-app">
+        <aside class="app-sidebar">
+            <div class="app-brand"><span class="brand-mark">✚</span><div><strong>智医 · 分诊助手</strong><small>智能分诊与导诊系统</small></div><i>AI</i></div>
+            <nav class="app-nav" aria-label="功能导航">
+                <a class="active" href="#consultation"><span>▣</span>智能问诊</a>
+                <a href="#consultation"><span>▤</span>问诊记录</a>
+                <a href="#consultation"><span>□</span>就诊计划</a>
+                <a href="#consultation"><span>♧</span>检查检验</a>
+                <a href="#consultation"><span>▧</span>我的订单</a>
+                <a href="#consultation"><span>▱</span>健康档案</a>
+            </nav>
+            <div class="patient-card"><span>就诊人</span><strong>张先生 <button type="button">切换</button></strong><small>男 · 32岁</small></div>
+            <button class="faq-button" type="button">?　常见问题</button>
+        </aside>
+
+        <main class="app-main" id="consultation">
+            <header class="app-header">
+                <div class="safety-state"><span>✓</span><div><strong>患者安全状态：低风险</strong><small>当前评估仅供参考，不能替代医生诊断</small></div></div>
+                <div class="header-tools"><button type="button">♧<b>2</b></button><button type="button">? 帮助</button><span class="user-badge">张</span><div><strong>张先生</strong><small>切换患者</small></div><span>⌄</span></div>
+            </header>
+
+            <section class="consultation-layout">
+                <section class="conversation-pane">
+                    <div class="chat-stream">
+                        <article class="chat-message assistant-message welcome-message"><span class="bot-avatar">●</span><div><div class="message-meta">AI分诊助手　10:24</div><p>您好，我是您的AI分诊助手。我会根据您的症状进行初步评估，并为您推荐合适的就诊科室。请详细描述您的不适症状、持续时间、诱因及伴随症状等。</p></div></article>
+                        <article class="chat-message user-message"><div><div class="message-meta">您</div><p id="questionPreview">请在下方描述患者当前的不适症状。</p></div><span class="user-avatar">张</span></article>
+                        <article class="chat-message assistant-message"><span class="bot-avatar">●</span><div class="followup-message"><div class="message-meta">AI追问　<small id="followupState">等待主诉</small></div><p>为了更准确地评估您的情况，请先描述患者当前症状。</p><div class="question-list" id="questionList"><p class="question-empty">提交主诉后，系统将根据病情生成不同的追问问题。</p></div></div></article>
+
+                        <article class="supplement-card" id="supplementCard" hidden>
+                            <div class="supplement-title"><h2>补充信息</h2><span>待完善</span></div>
+                            <div class="mini-form">
+                                <label>最高体温（°C）<input placeholder="如：38.5"></label>
+                                <label>年龄<input placeholder="如：32"></label>
+                                <label>性别<select><option value="">请选择</option><option>女</option><option>男</option></select></label>
+                                <label>联系电话<input placeholder="选填"></label>
+                                <label class="wide">既往病史<input placeholder="如高血压、糖尿病、过敏史等"></label>
+                                <label class="wide">当前用药<input placeholder="如布洛芬、抗过敏药等"></label>
+                            </div>
+                            <button type="button" class="submit-followup" id="followupSubmitBtn"><span class="spinner" hidden></span><span class="button-label">提交补充信息</span></button>
+                        </article>
+                        <article class="diagnosis-card" id="diagnosisCard" hidden>
+                            <div class="diagnosis-icon">✦</div>
+                            <div>
+                                <div class="diagnosis-heading"><h2 id="diagnosisTitle">病情分析与导诊建议</h2><span id="diagnosisMeta">AI 分析</span></div>
+                                <div id="diagnosisText"></div>
+                            </div>
+                        </article>
+                    </div>
+
+                    <div class="quick-replies"><strong>快捷回复</strong><button type="button">症状加重了</button><button type="button">体温 38.2°C</button><button type="button">有咳嗽</button><button type="button">流鼻涕</button><button type="button">头痛加重</button></div>
+                    <div class="chat-composer"><textarea id="question" maxlength="300" placeholder="请输入患者的症状，例如：今天早上开始皮肤发痒并出现红疹"></textarea><span id="charCount">0/300</span><button type="button" id="clearBtn" aria-label="清空">×</button><button type="button" id="submitBtn" class="send-button">开始</button></div>
+                    <p class="composer-hint">按 Enter 发送，Shift + Enter 换行</p>
+                </section>
+
+                <aside class="result-pane">
+                    <div class="result-pane-header"><h1>分诊结果 <small>（仅供参考）</small></h1><button type="button" id="reassessBtn">↻ 重新评估</button></div>
+                    <section class="result-pending" id="resultPending"><span class="pending-icon">⌁</span><strong>等待患者主诉</strong><p>提交症状后，系统将生成针对性追问；完成补充信息后展示科室、院内路线和医生号源。</p></section>
+                    <div class="final-result-content" id="finalResultContent" hidden>
+                        <section class="summary-card department-summary"><h2>推荐科室</h2><div class="summary-main"><span class="department-icon">◖</span><div><h3 id="departmentName">--</h3><p id="departmentReason"></p><button type="button" id="locateDepartmentBtn">科室介绍 ›</button></div></div></section>
+                        <section class="summary-card risk-summary"><div class="summary-heading"><h2>风险等级</h2><span id="confidenceText">置信度：--</span></div><div><span class="risk-icon">♥</span><strong id="riskLevel">--</strong><p id="riskDescription"></p></div></section>
+                        <section class="summary-card analysis-summary"><h2>导航诊室位置</h2><div class="analysis-line"><span>⌁</span><div><strong id="analysisTitle">--</strong><p id="analysisSummary"></p></div></div></section>
+                        <section class="summary-card map-card"><div class="summary-heading"><h2>院内导航</h2><div class="floor-list" id="floorList"><button data-floor="1F">1F</button><button data-floor="2F">2F</button><button data-floor="3F">3F</button><button data-floor="4F">4F</button><button data-floor="5F">5F</button></div></div><div class="hospital-map" id="hospitalMap"><span class="map-target" id="mapTarget">导诊台<small>1F · 门诊大厅</small></span></div><p class="location-summary" id="locationSummary"></p></section>
+                        <section class="summary-card doctors-card"><div class="summary-heading"><h2>医生与号源 <small>（今日）</small></h2><button type="button">更多号源 ›</button></div><div id="doctorList"></div></section>
+                        <section class="summary-card notes-card"><h2>下一步建议</h2><ul id="notesList"></ul><p id="analysisText"></p></section>
+                        <div class="result-actions"><button type="button" id="exportBtn">⇩ 导出报告</button></div>
+                    </div>
+                </aside>
+            </section>
+
+            <footer class="service-dock"><button type="button" class="dock-action"><span>✚</span><div><strong>预约挂号</strong><small>选择科室与医生</small></div></button><button type="button" class="dock-action"><span>●</span><div><strong>院内地图</strong><small>导航到院不迷路</small></div></button><button type="button" class="dock-action"><span>▤</span><div><strong>报告查询</strong><small>检查检验报告</small></div></button><button type="button" class="dock-action"><span>¥</span><div><strong>在线支付</strong><small>支持多种支付方式</small></div></button></footer>
+        </main>
+    </div>
+
+    <div class="modal" id="bookingModal" hidden><div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="bookingTitle"><h2 id="bookingTitle">确认挂号</h2><p id="bookingDetails"></p><label>就诊人<input id="patientName" value="张先生"></label><div class="modal-actions"><button type="button" id="cancelBookingBtn">取消</button><button type="button" id="confirmBookingBtn">确认挂号</button></div></div></div>
+    <div class="toast" id="toast" role="status" hidden></div>
+    <script src="app.js"></script>
+</body>
+</html>

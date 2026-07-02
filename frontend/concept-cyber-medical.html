@@ -1,0 +1,202 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>概念设计 - 赛博医疗风</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: "Inter", "PingFang SC", "Microsoft YaHei", sans-serif;
+  min-height: 100vh;
+  background: #0b0d1a;
+  color: #d4dce8;
+  overflow-x: hidden;
+}
+.bg-canvas { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+.bg-canvas::before {
+  content: "";
+  position: absolute; inset: 0;
+  background-image: linear-gradient(rgba(0, 255, 200, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 255, 200, 0.03) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse 60% 50% at 50% 40%, black, transparent);
+}
+.cyber-pulse { position: absolute; width: 100%; height: 3px; top: 35%; left: 0; background: linear-gradient(90deg, transparent, rgba(0, 255, 200, 0.06), transparent); animation: scanPulse 4s ease-in-out infinite; }
+@keyframes scanPulse { 0%, 100% { transform: translateX(-100%); } 50% { transform: translateX(100%); } }
+.glow-ring { position: absolute; width: 600px; height: 600px; left: 50%; top: 35%; transform: translate(-50%, -50%); border: 1px solid rgba(0, 255, 200, 0.04); border-radius: 50%; animation: ringPulse 6s ease-in-out infinite; }
+.glow-ring-2 { width: 400px; height: 400px; animation: ringPulse 8s ease-in-out infinite reverse; }
+@keyframes ringPulse { 0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.4; } 50% { transform: translate(-50%, -50%) scale(1.15); opacity: 0.1; } }
+.page-shell { position: relative; z-index: 1; width: min(1220px, calc(100% - 32px)); margin: 0 auto; padding: 28px 0 48px; }
+.hero-panel {
+  display: flex; justify-content: space-between; align-items: center; gap: 24px; padding: 24px 32px; border-radius: 16px;
+  border: 1px solid rgba(0, 255, 200, 0.12);
+  background: linear-gradient(135deg, rgba(6, 12, 30, 0.90), rgba(10, 6, 28, 0.92));
+  box-shadow: 0 0 40px rgba(0, 255, 200, 0.04), inset 0 0 60px rgba(0, 255, 200, 0.02);
+  position: relative; overflow: hidden;
+}
+.hero-panel::after { content: ""; position: absolute; bottom: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, rgba(0, 255, 200, 0.30), rgba(139, 92, 246, 0.30), transparent); }
+.hero-badge {
+  display: inline-flex; align-items: center; gap: 10px; margin-bottom: 12px; padding: 5px 14px 5px 6px; border-radius: 4px;
+  border: 1px solid rgba(0, 255, 200, 0.15); background: rgba(0, 255, 200, 0.04);
+  font-size: 11px; font-weight: 700; color: #00ffc8; font-family: "JetBrains Mono", "SF Mono", monospace;
+  text-transform: uppercase; letter-spacing: 0.08em;
+}
+.hero-badge .cyber-dot { width: 6px; height: 6px; background: #00ffc8; clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); animation: dotBlink 2s step-end infinite; }
+@keyframes dotBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
+.hero-panel h1 {
+  margin-bottom: 10px; font-size: clamp(32px, 4.2vw, 48px); font-weight: 800; line-height: 1.08; letter-spacing: -0.01em;
+  background: linear-gradient(135deg, #00ffc8 20%, #6366f1 60%, #a78bfa 85%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.hero-subtitle { color: #6a7a9a; font-size: 13px; line-height: 1.5; margin-bottom: 8px; font-family: "JetBrains Mono", "SF Mono", monospace; letter-spacing: 0.02em; }
+.hero-safety { display: inline-flex; align-items: center; gap: 6px; color: #f59e0b; font-size: 12px; }
+.hero-safety::before { content: "◆"; font-size: 7px; }
+.status-pill { display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: 4px; border: 1px solid rgba(0, 255, 200, 0.15); background: rgba(0, 255, 200, 0.03); color: #6a7a9a; font-size: 12px; font-weight: 600; font-family: "JetBrains Mono", "SF Mono", monospace; }
+.status-pill .scan-line { width: 12px; height: 12px; position: relative; overflow: hidden; }
+.status-pill .scan-line::before { content: ""; position: absolute; width: 100%; height: 1px; background: #00ffc8; top: 50%; left: 0; animation: scanLine 2s linear infinite; }
+@keyframes scanLine { 0% { transform: translateY(-6px); opacity: 0; } 20% { opacity: 1; } 50% { transform: translateY(6px); opacity: 0; } 100% { transform: translateY(6px); opacity: 0; } }
+.main-grid { display: grid; grid-template-columns: minmax(400px, 1.1fr) minmax(400px, 1fr); gap: 24px; margin-top: 24px; }
+.panel {
+  border-radius: 14px; padding: 22px; border: 1px solid rgba(0, 255, 200, 0.08);
+  background: linear-gradient(160deg, rgba(6, 12, 30, 0.75), rgba(10, 6, 28, 0.80));
+  box-shadow: 0 0 30px rgba(0, 255, 200, 0.02), inset 0 0 40px rgba(0, 255, 200, 0.01);
+  transition: all 0.3s; position: relative;
+}
+.panel::after { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, rgba(0, 255, 200, 0.10), transparent); opacity: 0; transition: opacity 0.3s; }
+.panel:hover::after { opacity: 1; }
+.panel:hover { border-color: rgba(0, 255, 200, 0.15); box-shadow: 0 0 50px rgba(0, 255, 200, 0.04), inset 0 0 40px rgba(0, 255, 200, 0.02); }
+.panel-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 18px; }
+.panel-kicker { margin-bottom: 6px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: #00ffc8; font-family: "JetBrains Mono", "SF Mono", monospace; text-transform: uppercase; display: inline-flex; align-items: center; gap: 8px; }
+.panel-kicker::before { content: "▶"; font-size: 8px; color: #00ffc8; }
+.panel-heading h2 { font-size: 18px; font-weight: 700; color: #d4dce8; }
+.counter { padding: 4px 12px; border-radius: 4px; border: 1px solid rgba(0, 255, 200, 0.10); background: rgba(0, 255, 200, 0.03); color: #00ffc8; font-size: 11px; font-weight: 700; font-family: "JetBrains Mono", "SF Mono", monospace; white-space: nowrap; }
+textarea { width: 100%; min-height: 110px; max-height: 260px; padding: 14px; border-radius: 10px; border: 1.5px solid rgba(0, 255, 200, 0.10); background: rgba(0, 0, 0, 0.30); color: #d4dce8; font-size: 14px; line-height: 1.7; resize: vertical; outline: none; font-family: inherit; transition: all 0.2s; }
+textarea:focus { border-color: rgba(0, 255, 200, 0.30); box-shadow: 0 0 0 4px rgba(0, 255, 200, 0.06), 0 0 30px rgba(0, 255, 200, 0.03); }
+textarea::placeholder { color: #3a4a6a; }
+.actions { display: grid; grid-template-columns: 1fr auto; gap: 10px; margin-top: 14px; }
+.primary-btn { min-height: 44px; padding: 0 24px; border: none; border-radius: 8px; background: linear-gradient(135deg, #00cc9a, #6366f1); color: #fff; font-weight: 700; font-size: 13px; cursor: pointer; transition: all 0.25s; box-shadow: 0 4px 24px rgba(0, 204, 154, 0.20); letter-spacing: 0.03em; }
+.primary-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(0, 204, 154, 0.30); }
+.secondary-btn { min-height: 44px; padding: 0 20px; border: 1px solid rgba(0, 255, 200, 0.12); border-radius: 8px; background: transparent; color: #6a7a9a; font-weight: 600; font-size: 13px; cursor: pointer; transition: all 0.2s; }
+.secondary-btn:hover { border-color: rgba(0, 255, 200, 0.25); color: #00ffc8; background: rgba(0, 255, 200, 0.03); }
+.loading-bar { display: flex; align-items: center; gap: 14px; margin-top: 14px; padding: 12px 16px; border-radius: 8px; border: 1px solid rgba(0, 255, 200, 0.08); background: rgba(0, 0, 0, 0.20); }
+.loading-bar .cyber-loader { display: flex; gap: 4px; }
+.loading-bar .cyber-loader span { width: 4px; height: 16px; background: #00ffc8; animation: loader 1s ease-in-out infinite; }
+.loading-bar .cyber-loader span:nth-child(2) { animation-delay: 0.15s; }
+.loading-bar .cyber-loader span:nth-child(3) { animation-delay: 0.3s; }
+.loading-bar .cyber-loader span:nth-child(4) { animation-delay: 0.45s; }
+.loading-bar .cyber-loader span:nth-child(5) { animation-delay: 0.6s; }
+@keyframes loader { 0%, 100% { transform: scaleY(0.3); opacity: 0.3; } 50% { transform: scaleY(1); opacity: 1; } }
+.loading-bar span { color: #00ffc8; font-size: 12px; font-weight: 500; font-family: "JetBrains Mono", "SF Mono", monospace; }
+.quick-block { margin-top: 18px; }
+.quick-block h3 { margin-bottom: 10px; color: #6a7a9a; font-size: 13px; font-weight: 600; }
+.examples { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.example-btn { padding: 8px 14px; border: 1px solid rgba(0, 255, 200, 0.06); border-radius: 6px; background: rgba(0, 0, 0, 0.20); color: #6a7a9a; font-size: 12px; font-weight: 500; text-align: left; cursor: pointer; line-height: 1.4; transition: all 0.2s; }
+.example-btn:hover { border-color: rgba(0, 255, 200, 0.20); background: rgba(0, 255, 200, 0.03); color: #00ffc8; }
+.result-card { border-radius: 12px; padding: 18px; border: 1px solid rgba(0, 255, 200, 0.06); background: rgba(0, 0, 0, 0.20); margin-bottom: 14px; transition: all 0.25s; }
+.result-card:hover { border-color: rgba(0, 255, 200, 0.12); }
+.result-card h3 { margin-bottom: 12px; font-size: 12px; font-weight: 700; color: #b0c0d8; display: flex; align-items: center; gap: 10px; font-family: "JetBrains Mono", "SF Mono", monospace; text-transform: uppercase; letter-spacing: 0.04em; }
+.result-card h3 .tag { padding: 2px 8px; border-radius: 2px; background: rgba(0, 255, 200, 0.08); color: #00ffc8; font-size: 10px; }
+.answer-box { padding: 14px; border-radius: 10px; background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(0, 255, 200, 0.06); font-size: 14px; line-height: 1.7; color: #b0c0d8; }
+.metric-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 14px; }
+.metric-card { padding: 12px 8px; border-radius: 8px; background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(0, 255, 200, 0.05); text-align: center; }
+.metric-card .label { display: block; font-size: 9px; font-weight: 700; color: #4a5a7a; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; font-family: "JetBrains Mono", "SF Mono", monospace; }
+.metric-card .value { display: inline-flex; align-items: center; padding: 4px 12px; border-radius: 3px; font-size: 11px; font-weight: 700; font-family: "JetBrains Mono", "SF Mono", monospace; }
+.value-emergency { background: rgba(239, 68, 68, 0.12); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.15); }
+.value-normal { background: rgba(0, 255, 200, 0.08); color: #00ffc8; border: 1px solid rgba(0, 255, 200, 0.10); }
+.value-blue { background: rgba(99, 102, 241, 0.10); color: #a5b4fc; border: 1px solid rgba(99, 102, 241, 0.12); }
+.value-muted { background: rgba(74, 90, 122, 0.10); color: #4a5a7a; border: 1px solid rgba(74, 90, 122, 0.12); }
+.floor-map { height: 200px; border-radius: 10px; border: 1px solid rgba(0, 255, 200, 0.06); background: rgba(0, 0, 0, 0.20); margin-top: 10px; display: flex; align-items: center; justify-content: center; color: #3a4a6a; font-size: 13px; font-family: "JetBrains Mono", "SF Mono", monospace; }
+.assist-section { margin-top: 36px; padding-top: 32px; border-top: 1px solid rgba(0, 255, 200, 0.06); }
+.assist-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 18px; }
+@media (max-width: 1024px) { .main-grid, .assist-grid { grid-template-columns: 1fr; } }
+@media (max-width: 768px) { .hero-panel { flex-direction: column; padding: 20px; } .metric-grid { grid-template-columns: repeat(2, 1fr); } .examples { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="bg-canvas">
+  <div class="cyber-pulse"></div>
+  <div class="glow-ring"></div>
+  <div class="glow-ring glow-ring-2"></div>
+</div>
+<div class="page-shell">
+  <header class="hero-panel">
+    <div>
+      <div class="hero-badge"><span class="cyber-dot"></span> // MEDICAL_TRIAGE_AGENT</div>
+      <h1>医疗导诊 Agent 系统</h1>
+      <p class="hero-subtitle">[ Qwen + RAG + Tools ] 智能导诊原型 · 赛博医疗版概念</p>
+      <span class="hero-safety">本系统仅提供导诊和健康科普参考，不能替代医生诊断</span>
+    </div>
+    <div class="status-pill"><span class="scan-line"></span> AGENT_ONLINE</div>
+  </header>
+  <div class="main-grid">
+    <div class="panel">
+      <div class="panel-heading">
+        <div>
+          <p class="panel-kicker">// 智能导诊输入</p>
+          <h2>描述症状或就医问题</h2>
+        </div>
+        <span class="counter">>> 0 chars</span>
+      </div>
+      <textarea placeholder="例如：我膝盖里面感觉很胀痛"></textarea>
+      <div class="actions">
+        <button class="primary-btn">[ 提交分析 ]</button>
+        <button class="secondary-btn">清空</button>
+      </div>
+      <div class="loading-bar">
+        <div class="cyber-loader"><span></span><span></span><span></span><span></span><span></span></div>
+        <span>ANALYZING...</span>
+      </div>
+      <div class="quick-block">
+        <h3>// QUICK_QUESTIONS</h3>
+        <div class="examples">
+          <button class="example-btn">我耳朵疼，应该挂什么科？</button>
+          <button class="example-btn">我眼睛红还疼，应该挂什么科？</button>
+          <button class="example-btn">我牙疼，应该挂什么科？</button>
+          <button class="example-btn">我尿尿的时候疼，应该挂什么科？</button>
+          <button class="example-btn">我皮肤很痒还起红疹，应该挂什么科？</button>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-heading">
+        <div>
+          <p class="panel-kicker">// 患者查询结果</p>
+          <h2>导诊结论与就医指引</h2>
+        </div>
+        <span class="counter">>> WAITING</span>
+      </div>
+      <div class="result-card">
+        <h3><span class="tag">TRIAGE</span> 导诊结论</h3>
+        <div class="answer-box">请输入问题并提交，系统会在这里显示导诊结论、就医指引和模拟楼层地图。</div>
+        <div class="metric-grid">
+          <div class="metric-card"><span class="label">RISK_LEVEL</span><span class="value value-muted">N/A</span></div>
+          <div class="metric-card"><span class="label">DEPARTMENT</span><span class="value value-blue">N/A</span></div>
+          <div class="metric-card"><span class="label">CONFIDENCE</span><span class="value value-muted">N/A</span></div>
+          <div class="metric-card"><span class="label">HANDOFF</span><span class="value value-muted">N/A</span></div>
+        </div>
+      </div>
+      <div class="result-card">
+        <h3><span class="tag">MAP</span> 模拟楼层地图</h3>
+        <div class="floor-map">// FLOOR_MAP_AREA</div>
+      </div>
+      <div class="result-card">
+        <h3><span class="tag">SOURCES</span> 参考来源</h3>
+        <p style="color:#3a4a6a;font-size:13px;">// NO_SOURCES</p>
+      </div>
+    </div>
+  </div>
+  <div class="assist-section">
+    <div style="margin-bottom:16px;">
+      <p class="panel-kicker">// PATIENT_ASSIST</p>
+      <h2 style="font-size:20px;font-weight:700;color:#d4dce8;margin-bottom:4px;">患者辅助功能区</h2>
+      <p style="color:#3a4a6a;font-size:13px;">当前为演示功能，实际结果以医院官方系统为准。</p>
+    </div>
+    <div class="assist-grid">
+      <div class="panel"><h3 style="font-size:14px;font-weight:700;color:#b0c0d8;margin-bottom:10px;">一键缴费</h3><p style="color:#3a4a6a;font-size:13px;">当前为演示功能...</p></div>
+      <div class="panel"><h3 style="font-size:14px;font-weight:700;color:#b0c0d8;margin-bottom:10px;">电子资料保存</h3><p style="color:#3a4a6a;font-size:13px;">当前为演示功能...</p></div>
+      <div class="panel"><h3 style="font-size:14px;font-weight:700;color:#b0c0d8;margin-bottom:10px;">资料快速调阅</h3><p style="color:#3a4a6a;font-size:13px;">当前为演示功能...</p></div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
