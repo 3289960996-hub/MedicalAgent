@@ -33,6 +33,25 @@
 5. 若信息不足，系统返回追问问题；若信息足够，继续执行 RAG 检索、人工转接判断和最终回答生成。
 6. 前端或命令行展示风险等级、推荐科室、就医路径、参考依据和免责声明。
 
+## 架构图
+
+```mermaid
+flowchart TD
+    A[用户症状输入] --> B[FastAPI /chat]
+    B --> C[LangGraph MedicalAgentState]
+    C --> D[业务边界判断]
+    D --> E[风险等级判断]
+    E --> F[症状与意图分析]
+    F --> G[科室推荐]
+    G --> H[院内位置与挂号流程]
+    H --> I{是否需要追问}
+    I -- 是 --> J[返回动态追问]
+    I -- 否 --> K[RAG 知识库检索]
+    K --> L[人工转接判断]
+    L --> M[生成导诊建议]
+    M --> N[前端/命令行展示]
+```
+
 ## 目录结构
 
 ```text
@@ -103,6 +122,18 @@ curl -X POST http://127.0.0.1:8000/build
 python -m pytest -q
 ```
 
+使用 Docker 启动后端：
+
+```bash
+docker compose up --build
+```
+
+启动后访问：
+
+```text
+http://127.0.0.1:8000/docs
+```
+
 ## 示例输入输出
 
 可以直接运行内置 demo：
@@ -171,6 +202,24 @@ python main.py --case all
 ```
 
 说明：默认 `main.py` 使用轻量规则 demo，便于无 API Key 时快速展示；使用 `--full-agent` 会调用现有 LangGraph Agent 全流程，实际输出会受到规则、模型返回、知识库和本地配置影响。
+
+## RAG 引用来源
+
+完整 Agent 流程会保留 RAG 检索来源字段，便于前端或命令行展示回答参考依据：
+
+```json
+{
+  "sources": ["科室说明.txt", "就诊流程.txt"],
+  "source_details": [
+    {
+      "source": "科室说明.txt",
+      "content": "呼吸内科主要处理咳嗽、发热、气促等呼吸系统相关问题..."
+    }
+  ]
+}
+```
+
+这些字段来自 `rag/` 和 `tools/medical_rag_tool.py`，用于说明导诊建议参考了哪些本地知识文档。
 
 ## 后续优化方向
 

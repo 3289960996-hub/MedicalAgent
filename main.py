@@ -81,6 +81,8 @@ def build_demo_result(question: str) -> dict:
         ),
         "answer": result.get("answer") or result.get("display_text", ""),
         "visit_guide": result.get("visit_guide", ""),
+        "sources": result.get("sources", []),
+        "source_details": result.get("source_details", []),
         "disclaimer": "本项目仅用于学习研究，不能替代医生诊断。",
     }
 

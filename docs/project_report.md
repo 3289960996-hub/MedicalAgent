@@ -101,8 +101,10 @@
 - 使用规则工具优先处理高风险信号和常见科室路由，保证基础能力稳定。
 - 使用 OpenAI 兼容接口调用 Qwen 等大模型，完成语义理解、症状分析和追问生成。
 - 使用 ChromaDB 和 sentence-transformers 构建本地知识库检索能力。
+- 在完整 Agent 返回中保留 `sources` 和 `source_details` 字段，用于展示 RAG 参考来源，提升回答可解释性。
 - 使用 FastAPI 暴露结构化接口，方便前端、机器人终端或命令行 demo 调用。
 - 使用前端静态页面演示导诊结果、科室地图、医生列表和模拟挂号流程。
+- 提供 Dockerfile 和 docker-compose.yml，支持容器化启动后端演示服务。
 
 ## 项目不足
 
