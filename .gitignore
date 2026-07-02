@@ -12,6 +12,8 @@ wheels/
 # Environment and local config
 .env
 project_config/.env
+project_config/.editorconfig
+project_config/.python-version
 *.env
 
 # Logs and runtime data
