@@ -26,3 +26,6 @@ jobs:
 
       - name: Run unit tests
         run: python -m pytest -q
+
+      - name: Run triage evaluation
+        run: python scripts/evaluate_demo_cases.py --fail-under 1.0

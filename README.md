@@ -122,6 +122,12 @@ curl -X POST http://127.0.0.1:8000/build
 python -m pytest -q
 ```
 
+运行轻量导诊评测：
+
+```bash
+python scripts/evaluate_demo_cases.py --fail-under 1.0
+```
+
 使用 Docker 启动后端：
 
 ```bash
@@ -227,7 +233,21 @@ python main.py --case all
 - 高风险症状优先走规则兜底，降低大模型漏判胸痛、呼吸困难、意识异常等情况的风险。
 - 通过动态追问补齐关键信息，避免在症状描述不足时直接给出过度确定的建议。
 - RAG 检索与导诊流程解耦，后续可以替换知识库或增加引用展示，而不影响主流程编排。
-- 提供命令行 demo、前端页面、Docker 启动和 GitHub Actions 单元测试，方便面试官快速验证项目。
+- 提供命令行 demo、前端页面、Docker 启动、GitHub Actions 单元测试和轻量评测集，方便面试官快速验证项目。
+
+## 评测结果
+
+项目提供 `eval/triage_eval_cases.json` 作为轻量导诊评测集，覆盖低风险、中风险、高风险、否定高危词和常见科室路由。当前评测结果：
+
+| 指标 | 结果 |
+| --- | --- |
+| 样例数量 | 12 |
+| 完全匹配率 | 100% |
+| 风险等级准确率 | 100% |
+| 科室推荐准确率 | 100% |
+| 追问判断准确率 | 100% |
+
+详细说明见 `docs/evaluation_report.md`。
 
 ## 难点与解决方案
 

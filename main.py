@@ -34,10 +34,10 @@ def build_rule_demo_result(question: str) -> dict:
         department = "急诊科"
     elif any(keyword in question for keyword in ["胃痛", "胃疼", "肚子疼", "腹痛", "恶心", "呕吐", "腹泻"]):
         department = "消化内科"
-    elif any(keyword in question for keyword in ["咳嗽", "发烧", "发热", "嗓子疼", "呼吸"]):
-        department = "呼吸内科"
     elif any(keyword in question for keyword in ["牙疼", "牙痛", "牙龈"]):
         department = "口腔科"
+    elif any(keyword in question for keyword in ["咳嗽", "发烧", "发热", "嗓子疼", "呼吸"]):
+        department = "呼吸内科"
     elif any(keyword in question for keyword in ["头痛", "头晕", "手麻", "脚麻"]):
         department = "神经内科"
     else:

@@ -1,0 +1,110 @@
+[
+  {
+    "id": "low_cough_no_red_flags",
+    "input": "我咳嗽两天了，有点流鼻涕，没有胸痛，也没有呼吸困难，应该挂什么科？",
+    "expected": {
+      "risk_level": "low",
+      "recommended_department": "呼吸内科",
+      "need_followup": true
+    }
+  },
+  {
+    "id": "low_sore_throat",
+    "input": "我嗓子疼，有点咳嗽，没有呼吸困难",
+    "expected": {
+      "risk_level": "low",
+      "recommended_department": "呼吸内科",
+      "need_followup": true
+    }
+  },
+  {
+    "id": "medium_stomach_three_days",
+    "input": "我胃痛持续三天了，今天还有点发热和恶心，应该去哪个科？",
+    "expected": {
+      "risk_level": "medium",
+      "recommended_department": "消化内科",
+      "need_followup": true
+    }
+  },
+  {
+    "id": "medium_worsening_abdominal_pain",
+    "input": "我肚子疼持续多天，今天明显加重，还有点恶心",
+    "expected": {
+      "risk_level": "medium",
+      "recommended_department": "消化内科",
+      "need_followup": true
+    }
+  },
+  {
+    "id": "high_chest_pain_breathing",
+    "input": "我突然胸痛，喘不上气，还有明显呼吸困难，现在应该怎么办？",
+    "expected": {
+      "risk_level": "high",
+      "recommended_department": "急诊科",
+      "need_followup": false
+    }
+  },
+  {
+    "id": "high_breathing_without_chest_pain",
+    "input": "没有胸痛，但是呼吸困难",
+    "expected": {
+      "risk_level": "high",
+      "recommended_department": "急诊科",
+      "need_followup": false
+    }
+  },
+  {
+    "id": "low_negated_red_flags_cough",
+    "input": "没有胸痛，也没有呼吸困难，只是咳嗽",
+    "expected": {
+      "risk_level": "low",
+      "recommended_department": "呼吸内科",
+      "need_followup": true
+    }
+  },
+  {
+    "id": "high_bleeding",
+    "input": "我大量出血，感觉很虚弱",
+    "expected": {
+      "risk_level": "high",
+      "recommended_department": "急诊科",
+      "need_followup": false
+    }
+  },
+  {
+    "id": "high_trauma",
+    "input": "我刚发生严重外伤，现在很疼",
+    "expected": {
+      "risk_level": "high",
+      "recommended_department": "急诊科",
+      "need_followup": false
+    }
+  },
+  {
+    "id": "low_toothache",
+    "input": "我牙疼一天了，没有发烧",
+    "expected": {
+      "risk_level": "low",
+      "recommended_department": "口腔科",
+      "need_followup": true
+    }
+  },
+  {
+    "id": "low_headache",
+    "input": "我头痛头晕，没有意识不清",
+    "expected": {
+      "risk_level": "low",
+      "recommended_department": "神经内科",
+      "need_followup": true
+    }
+  },
+  {
+    "id": "medium_high_fever",
+    "input": "我高烧持续三天，还咳嗽",
+    "expected": {
+      "risk_level": "medium",
+      "recommended_department": "呼吸内科",
+      "need_followup": true
+    }
+  }
+]

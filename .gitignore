@@ -52,3 +52,4 @@ run_append_projects*.py
 
 # Generated static exports
 docs/exported_site/
+eval/last_report.json
