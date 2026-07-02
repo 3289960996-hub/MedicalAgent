@@ -97,6 +97,12 @@ http://127.0.0.1:8000/docs
 curl -X POST http://127.0.0.1:8000/build
 ```
 
+运行单元测试：
+
+```bash
+python -m pytest -q
+```
+
 ## 示例输入输出
 
 可以直接运行内置 demo：
