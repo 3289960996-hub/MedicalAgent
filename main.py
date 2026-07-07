@@ -2,8 +2,20 @@ import argparse
 import json
 from pathlib import Path
 
+from backend.app import app
+
 
 DEMO_CASES_PATH = Path(__file__).resolve().parent / "examples" / "demo_cases.json"
+
+application = app
+
+
+def __getattr__(name: str):
+    if name in {"app", "application"}:
+        from backend.app import app
+
+        return app
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def has_unnegated_keyword(question: str, keyword: str, negations: list[str]) -> bool:

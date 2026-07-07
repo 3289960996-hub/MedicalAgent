@@ -97,6 +97,8 @@ qwen_followup_prompt = ChatPromptTemplate.from_messages([
 4. 每个追问都必须和当前主诉直接相关。
 5. 已经在患者描述中出现的信息，不要重复追问。
 6. 每次最多追问 3 个问题。
+6a. 只要 need_followup=true，每个 follow_up_items 元素都必须包含 3 到 5 个患者可点击选项。
+6b. 选项必须是患者能直接选择的短语，不能是空数组，不能写“请自行补充”。
 7. 如果信息已经足够推荐科室，need_followup 必须为 false。
 8. 如果已追问次数 >= 1，need_followup 必须为 false。
 9. 不能诊断疾病。
@@ -155,7 +157,7 @@ qwen_followup_prompt = ChatPromptTemplate.from_messages([
   "follow_up_items": [
     {{
       "question": "动态追问问题",
-      "options": ["动态选项1", "选项2", "选项3", "选项4"]
+      "options": ["动态选项1", "动态选项2", "动态选项3", "不确定"]
     }}
   ],
   "preliminary_department": "",
@@ -186,6 +188,8 @@ qwen_followup_prompt = ChatPromptTemplate.from_messages([
 2. 不要使用固定模板。
 3. 不要重复患者已经说过的信息。
 4. 最多追问 3 个问题。
+4a. 如果 need_followup=true，必须给每个问题返回 3 到 5 个可点击选项。
+4b. 不允许返回没有 options 的问题，不允许 options 为空数组。
 5. 如果已追问次数 >= 1，need_followup 必须为 false。
 6. 必须严格返回 JSON。
 """
@@ -208,8 +212,13 @@ triage_analysis_prompt = ChatPromptTemplate.from_messages([
 4. 不能给治疗方案。
 5. 每次最多追问 3 个问题。
 6. 追问问题和选项必须根据病情动态生成。
+6a. 只要 need_followup=true，每个 follow_up_items 元素必须有 3 到 5 个患者可点击选项。
+6b. 不能返回空 options，不能让患者自由填写。
 7. 严格返回 JSON，不要 Markdown，不要解释文字。
 8. 如果存在呼吸困难、意识异常、大量出血、剧烈胸痛、严重外伤、持续高热、迅速加重、无法行走、明显畸形，应标记 high，并建议急诊科/转人工。
+9. 当 need_followup=false 时，必须给出面向患者的具体导诊分析，不允许只写“进一步判断”这种空泛表述。
+10. 分析要结合患者主诉和补充信息，说明推荐诊室的原因、当前可能涉及的方向、需要观察的风险信号、到诊时要告诉医生的信息。
+11. 不要输出内部错误、模型错误、解析错误、API 错误。
 
 可用标准科室包括：
 急诊科、发热门诊、全科医学科、儿科、口腔科、肛肠科、普外科、呼吸内科、消化内科、耳鼻喉科、眼科、感染科/发热门诊、心内科、神经内科、内分泌科、泌尿外科、妇科、乳腺外科、骨科、皮肤科、风湿免疫科、康复医学科、精神心理科。
@@ -224,11 +233,16 @@ triage_analysis_prompt = ChatPromptTemplate.from_messages([
   "confidence": 0.0,
   "red_flags": [],
   "reason": "",
+  "department_reason": "",
+  "patient_explanation": "",
+  "urgency_advice": "",
+  "doctor_questions": [],
+  "visit_preparation": [],
   "need_followup": true/false,
   "follow_up_items": [
     {{
       "question": "",
-      "options": []
+      "options": ["选项1", "选项2", "选项3", "不确定"]
     }}
   ]
 }}
@@ -247,6 +261,7 @@ triage_analysis_prompt = ChatPromptTemplate.from_messages([
 {previous_result}
 
 请返回严格 JSON。若已追问次数 >= 1，need_followup 必须为 false。
+如果 need_followup=false，请完整填写 symptom_summary、possible_conditions、reason、department_reason、patient_explanation、urgency_advice、doctor_questions、visit_preparation。
 """
     )
 ])

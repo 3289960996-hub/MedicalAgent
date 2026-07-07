@@ -53,3 +53,7 @@ run_append_projects*.py
 # Generated static exports
 docs/exported_site/
 eval/last_report.json
+
+# Local workspace materials that are not part of the MedicalAgent app
+local_workspace/
+frontend/backup-before-sync-*/

@@ -5,24 +5,12 @@ from agent_core.langchain_chains import run_qwen_followup_chain
 
 
 DEFAULT_RESULT = {
-    "need_followup": True,
+    "need_followup": False,
     "symptom_type": "未明确症状",
     "known_info": {},
-    "missing_info": ["症状持续时间", "是否有加重或伴随症状"],
-    "follow_up_questions": [
-        "这种不舒服持续多久了？",
-        "有没有明显加重，或者伴随发烧、红肿、呼吸困难等情况？"
-    ],
-    "follow_up_items": [
-        {
-            "question": "这种不舒服持续多久了？",
-            "options": []
-        },
-        {
-            "question": "有没有明显加重，或者伴随发烧、红肿、呼吸困难等情况？",
-            "options": []
-        }
-    ],
+    "missing_info": [],
+    "follow_up_questions": [],
+    "follow_up_items": [],
     "preliminary_department": "全科医学科或导诊台",
     "risk_level": "normal",
     "reason": "Qwen 追问结果解析失败，建议先补充关键信息。"
@@ -57,19 +45,12 @@ def _safe_followup_items(value, fallback_questions: list[str]) -> list[dict]:
             if not question:
                 continue
             options = _safe_list(item.get("options"))[:6]
+            if len(options) < 2:
+                continue
             items.append({
                 "question": question,
                 "options": options
             })
-
-    if not items:
-        items = [
-            {
-                "question": question,
-                "options": []
-            }
-            for question in fallback_questions
-        ]
 
     return items[:3]
 
@@ -115,6 +96,9 @@ def qwen_followup_tool(question: str, session_state: dict | None = None) -> dict
         follow_up_questions = [item["question"] for item in follow_up_items]
     missing_info = _safe_list(data.get("missing_info"))
     need_followup = _safe_bool(data.get("need_followup", False))
+    if not follow_up_items:
+        need_followup = False
+        follow_up_questions = []
 
     if followup_count >= 1:
         need_followup = False

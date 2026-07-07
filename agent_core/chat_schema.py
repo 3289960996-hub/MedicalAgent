@@ -25,6 +25,11 @@ CHAT_SCHEMA_DEFAULTS = {
     "possible_conditions": [],
     "red_flags": [],
     "reason": "",
+    "department_reason": "",
+    "patient_explanation": "",
+    "urgency_advice": "",
+    "doctor_questions": [],
+    "visit_preparation": [],
     "department_location": {},
     "location": {},
     "registration_steps": [],
@@ -69,16 +74,26 @@ def normalize_chat_result(
         or result.get("follow_up_items")
         or []
     )
-    if not followup_items and followup_questions:
-        followup_items = [
-            {
-                "question": question,
-                "options": []
-            }
-            for question in followup_questions
-        ]
+    followup_items = [
+        {
+            "question": str(item.get("question") or item.get("text") or "").strip(),
+            "options": [str(option).strip() for option in item.get("options", []) if str(option).strip()][:6],
+        }
+        for item in followup_items
+        if isinstance(item, dict)
+    ]
+    followup_items = [
+        item
+        for item in followup_items
+        if item["question"] and len(item["options"]) >= 2
+    ][:3]
+    followup_questions = [item["question"] for item in followup_items]
+    if result.get("need_followup") is True and not followup_items:
+        result["need_followup"] = False
     result["followup_items"] = followup_items
     result["follow_up_items"] = followup_items
+    result["followup_questions"] = followup_questions
+    result["follow_up_questions"] = followup_questions
 
     risk_level = normalize_risk_level(result.get("risk_level", "low"))
     result["risk_level"] = risk_level
@@ -107,6 +122,11 @@ def normalize_chat_result(
     result["possible_conditions"] = result.get("possible_conditions") or []
     result["red_flags"] = result.get("red_flags") or []
     result["reason"] = result.get("reason") or ""
+    result["department_reason"] = result.get("department_reason") or ""
+    result["patient_explanation"] = result.get("patient_explanation") or ""
+    result["urgency_advice"] = result.get("urgency_advice") or ""
+    result["doctor_questions"] = result.get("doctor_questions") or []
+    result["visit_preparation"] = result.get("visit_preparation") or []
 
     department_location = get_department_location(department)
     result["department_location"] = department_location

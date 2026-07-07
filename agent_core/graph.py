@@ -326,8 +326,34 @@ def safe_followup_items(value) -> list:
             if not question:
                 continue
             options = safe_str_list(item.get("options"))[:6]
+            if len(options) < 2:
+                continue
             items.append({"question": question, "options": options})
     return items[:3]
+
+
+def is_vague_or_no_symptom(question: str) -> bool:
+    text = re.sub(r"\s+", "", str(question or ""))
+    if not text:
+        return True
+    vague_phrases = {
+        "我没事",
+        "没事",
+        "没有不舒服",
+        "无不适",
+        "没不舒服",
+        "不知道",
+        "随便看看",
+        "咨询一下",
+    }
+    if text in vague_phrases:
+        return True
+    symptom_hints = [
+        "痛", "疼", "痒", "咳", "烧", "热", "吐", "泻", "晕", "麻", "肿", "血",
+        "胸闷", "气短", "恶心", "鼻塞", "流涕", "皮疹", "红疹", "腹", "头", "嗓子",
+        "发热", "乏力", "心慌", "失眠", "外伤", "摔", "扭"
+    ]
+    return len(text) < 4 and not any(hint in text for hint in symptom_hints)
 
 
 def has_red_flag(question: str) -> bool:
@@ -580,9 +606,15 @@ def triage_analysis_node(state: MedicalAgentState) -> MedicalAgentState:
             result_text = run_triage_analysis_chain(question, followup_count, previous_result)
             data = json.loads(clean_json_text(result_text))
         except Exception as exc:
-            data = {"reason": f"LLM病情分析解析失败：{exc}"}
+            data = {
+                "_internal_error": f"LLM病情分析解析失败：{exc}",
+                "reason": ""
+            }
     else:
-        data = {"reason": "未加载LLM病情分析链"}
+        data = {
+            "_internal_error": "未加载LLM病情分析链",
+            "reason": ""
+        }
 
     llm_department = data.get("canonical_department") or data.get("recommended_department") or ""
     risk_level = normalize_risk_level(data.get("risk_level") or state.get("risk_level") or "low")
@@ -595,8 +627,10 @@ def triage_analysis_node(state: MedicalAgentState) -> MedicalAgentState:
 
     department = canonicalize_department(llm_department, question, risk_level) if llm_department else ""
     follow_up_items = safe_followup_items(data.get("follow_up_items") or data.get("followup_items"))
-    need_followup = bool(data.get("need_followup")) and followup_count < 1 and risk_level != "high"
+    need_followup = bool(data.get("need_followup")) and bool(follow_up_items) and followup_count < 1 and risk_level != "high"
     follow_up_questions = [item["question"] for item in follow_up_items]
+
+    internal_error = str(data.get("_internal_error") or "").strip()
 
     analysis = {
         "symptom_summary": str(data.get("symptom_summary") or "").strip(),
@@ -607,9 +641,16 @@ def triage_analysis_node(state: MedicalAgentState) -> MedicalAgentState:
         "confidence": normalize_confidence(data.get("confidence", 0.45)),
         "red_flags": red_flags,
         "reason": str(data.get("reason") or "").strip(),
+        "department_reason": str(data.get("department_reason") or "").strip(),
+        "patient_explanation": str(data.get("patient_explanation") or "").strip(),
+        "urgency_advice": str(data.get("urgency_advice") or "").strip(),
+        "doctor_questions": safe_str_list(data.get("doctor_questions")),
+        "visit_preparation": safe_str_list(data.get("visit_preparation")),
         "need_followup": need_followup,
         "follow_up_items": follow_up_items,
     }
+    if internal_error:
+        analysis["internal_error"] = internal_error
 
     tools_used, tool_results = add_tool(state, "triage_analysis_chain", analysis)
 
@@ -621,6 +662,11 @@ def triage_analysis_node(state: MedicalAgentState) -> MedicalAgentState:
         "confidence": analysis["confidence"],
         "red_flags": red_flags,
         "reason": analysis["reason"],
+        "department_reason": analysis["department_reason"],
+        "patient_explanation": analysis["patient_explanation"],
+        "urgency_advice": analysis["urgency_advice"],
+        "doctor_questions": analysis["doctor_questions"],
+        "visit_preparation": analysis["visit_preparation"],
         "need_followup": need_followup,
         "follow_up_questions": follow_up_questions,
         "followup_questions": follow_up_questions,
@@ -1063,15 +1109,53 @@ def preliminary_answer_node(state: MedicalAgentState) -> MedicalAgentState:
     )
     department_location = get_department_location(department)
 
-    parts = ["\u76ee\u524d\u4fe1\u606f\u8fd8\u4e0d\u5b8c\u6574\uff0c\u6682\u4e0d\u505a\u75be\u75c5\u5224\u65ad\uff0c\u8bf7\u8865\u5145\u4ee5\u4e0b\u4fe1\u606f\uff1a\n"]
-    fq = state.get("follow_up_questions", []) or [
-        "这种不舒服持续多久了？",
-        "有没有单侧/双侧、外伤、发热或其他伴随症状？"
-    ]
-    fi = state.get("follow_up_items", []) or [
-        {"question": question, "options": []}
-        for question in fq
-    ]
+    fi = safe_followup_items(state.get("follow_up_items", []))
+    fq = [item["question"] for item in fi]
+
+    if not fi:
+        if is_vague_or_no_symptom(state.get("question", "")):
+            ans = (
+                "当前还没有描述明确的不适症状，系统暂时无法生成有针对性的追问。"
+                "请补充患者具体哪里不舒服、持续多久、是否加重，以及是否伴随发热、疼痛、咳嗽、恶心、皮疹等表现。"
+            )
+            path_text = "主诉过于笼统，提示用户补充具体症状"
+        else:
+            ans = (
+                "当前没有生成可选择的追问项。请换一种方式补充主诉，例如说明不适部位、持续时间、严重程度和伴随症状，"
+                "系统会再根据补充信息生成追问或导诊建议。"
+            )
+            path_text = "未返回有效追问选项，提示用户补充主诉"
+        return {
+            "doctors": [],
+            "recommended_doctors": [],
+            "department": department,
+            "recommended_department": department,
+            "canonical_department": department,
+            "department_location": department_location,
+            "risk_level": state.get("risk_level", ""),
+            "confidence": state.get("confidence", ""),
+            "symptom_summary": state.get("symptom_summary") or triage_analysis.get("symptom_summary", ""),
+            "possible_conditions": state.get("possible_conditions") or triage_analysis.get("possible_conditions", []),
+            "red_flags": state.get("red_flags") or triage_analysis.get("red_flags", []),
+            "reason": state.get("reason") or triage_analysis.get("reason", ""),
+            "analysis": state.get("reason") or triage_analysis.get("reason", ""),
+            "location": department_location,
+            "registration_steps": [],
+            "handoff": {},
+            "sources": [],
+            "source_details": [],
+            "answer": ans,
+            "display_text": ans,
+            "speak_text": ans[:120],
+            "need_followup": False,
+            "follow_up_questions": [],
+            "followup_questions": [],
+            "follow_up_items": [],
+            "followup_items": [],
+            "decision_path": add_path(state, path_text)
+        }
+
+    parts = ["目前信息还不完整，暂不做疾病判断，请选择以下补充信息：\n"]
 
     if fq:
         for i, q in enumerate(fq, 1):

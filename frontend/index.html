@@ -14,9 +14,8 @@
                 <a class="active" href="#consultation"><span>▣</span>智能问诊</a>
                 <a href="#consultation"><span>▤</span>问诊记录</a>
                 <a href="#consultation"><span>□</span>就诊计划</a>
-                <a href="#consultation"><span>♧</span>检查检验</a>
-                <a href="#consultation"><span>▧</span>我的订单</a>
-                <a href="#consultation"><span>▱</span>健康档案</a>
+                <a href="#consultation"><span>▧</span>挂号订单</a>
+                <a href="#consultation"><span>▱</span>患者档案</a>
             </nav>
             <div class="patient-card"><span>就诊人</span><strong>张先生 <button type="button">切换</button></strong><small>男 · 32岁</small></div>
             <button class="faq-button" type="button">?　常见问题</button>
@@ -36,15 +35,8 @@
                         <article class="chat-message assistant-message"><span class="bot-avatar">●</span><div class="followup-message"><div class="message-meta">AI追问　<small id="followupState">等待主诉</small></div><p>为了更准确地评估您的情况，请先描述患者当前症状。</p><div class="question-list" id="questionList"><p class="question-empty">提交主诉后，系统将根据病情生成不同的追问问题。</p></div></div></article>
 
                         <article class="supplement-card" id="supplementCard" hidden>
-                            <div class="supplement-title"><h2>补充信息</h2><span>待完善</span></div>
-                            <div class="mini-form">
-                                <label>最高体温（°C）<input placeholder="如：38.5"></label>
-                                <label>年龄<input placeholder="如：32"></label>
-                                <label>性别<select><option value="">请选择</option><option>女</option><option>男</option></select></label>
-                                <label>联系电话<input placeholder="选填"></label>
-                                <label class="wide">既往病史<input placeholder="如高血压、糖尿病、过敏史等"></label>
-                                <label class="wide">当前用药<input placeholder="如布洛芬、抗过敏药等"></label>
-                            </div>
+                            <div class="supplement-title"><h2>提交 AI 追问选项</h2><span>待选择</span></div>
+                            <p class="followup-note">请选择上方每个 AI 追问的答案。系统会把主诉和选项一起交给 Qwen，再生成病情分析与建议诊室。</p>
                             <button type="button" class="submit-followup" id="followupSubmitBtn"><span class="spinner" hidden></span><span class="button-label">提交补充信息</span></button>
                         </article>
                         <article class="diagnosis-card" id="diagnosisCard" hidden>
@@ -82,6 +74,6 @@
 
     <div class="modal" id="bookingModal" hidden><div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="bookingTitle"><h2 id="bookingTitle">确认挂号</h2><p id="bookingDetails"></p><label>就诊人<input id="patientName" value="张先生"></label><div class="modal-actions"><button type="button" id="cancelBookingBtn">取消</button><button type="button" id="confirmBookingBtn">确认挂号</button></div></div></div>
     <div class="toast" id="toast" role="status" hidden></div>
-    <script src="app.js"></script>
+    <script src="app.js?v=20260707-order-state"></script>
 </body>
 </html>
