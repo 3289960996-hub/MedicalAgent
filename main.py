@@ -2,18 +2,31 @@ import argparse
 import json
 from pathlib import Path
 
-from backend.app import app
-
 
 DEMO_CASES_PATH = Path(__file__).resolve().parent / "examples" / "demo_cases.json"
 
+
+class LazyASGIApp:
+    def __init__(self):
+        self._app = None
+
+    def load(self):
+        if self._app is None:
+            from backend.app import app as backend_app
+
+            self._app = backend_app
+        return self._app
+
+    async def __call__(self, scope, receive, send):
+        await self.load()(scope, receive, send)
+
+
+app = LazyASGIApp()
 application = app
 
 
 def __getattr__(name: str):
     if name in {"app", "application"}:
-        from backend.app import app
-
         return app
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
