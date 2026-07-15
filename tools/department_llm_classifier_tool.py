@@ -1,5 +1,6 @@
 import json
 
+from agent_core.json_utils import clean_json_text
 from agent_core.llm import call_llm
 
 
@@ -22,23 +23,6 @@ VALID_DEPARTMENTS = [
     "内分泌科",
     "导诊台"
 ]
-
-
-def clean_json_text(text: str) -> str:
-    """
-    清洗 Qwen 可能返回的 ```json 代码块。
-    """
-    text = text.strip()
-
-    if text.startswith("```"):
-        lines = text.splitlines()
-        if lines and lines[0].startswith("```"):
-            lines = lines[1:]
-        if lines and lines[-1].startswith("```"):
-            lines = lines[:-1]
-        text = "\n".join(lines).strip()
-
-    return text
 
 
 def normalize_confidence(value: str | None) -> str:

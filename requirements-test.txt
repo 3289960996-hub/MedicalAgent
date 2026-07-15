@@ -1,0 +1,4 @@
+pytest
+openai
+python-dotenv
+langchain-core

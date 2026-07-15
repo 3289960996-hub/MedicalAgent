@@ -3,11 +3,15 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).resolve().parents[1] / "project_config" / ".env")
+ROOT_DIR = Path(__file__).resolve().parents[1]
+
+load_dotenv(ROOT_DIR / ".env")
+load_dotenv(ROOT_DIR / "project_config" / ".env", override=True)
 
 LLM_API_KEY = os.getenv("LLM_API_KEY")
 LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
 LLM_MODEL = os.getenv("LLM_MODEL", "qwen-plus")
+LLM_VISION_MODEL = os.getenv("LLM_VISION_MODEL", "qwen3.7-plus")
 
 MYSQL_HOST = os.getenv("MYSQL_HOST", "localhost")
 MYSQL_PORT = int(os.getenv("MYSQL_PORT", "3306"))

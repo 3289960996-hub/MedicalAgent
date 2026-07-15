@@ -1,12 +1,19 @@
 [project]
 name = "medicalagent"
 version = "0.1.0"
-description = "Add your description here"
+description = "基于大模型的智能分诊、就医路径推荐与化验单辅助解读系统"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "deepagents>=0.6.11",
-    "langchain>=1.3.11",
+    "chromadb",
+    "fastapi",
+    "langchain",
+    "langgraph",
+    "openai",
     "pymysql>=1.1.1",
+    "pydantic",
+    "python-dotenv",
+    "sentence-transformers",
     "sqlalchemy>=2.0.0",
+    "uvicorn",
 ]

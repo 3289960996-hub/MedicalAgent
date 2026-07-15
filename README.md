@@ -86,9 +86,24 @@ pip install -r requirements.txt
 LLM_API_KEY=your_api_key
 LLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 LLM_MODEL=qwen-plus
+LLM_VISION_MODEL=qwen3.7-plus
 ```
 
+可复制仓库中的 `.env.example` 作为配置模板。请勿提交包含真实 Key 的 `.env` 文件。
+
+### 化验单隐私说明
+
+化验单图片会发送到你在 `LLM_BASE_URL` 中配置的模型服务进行识别和解释。请勿上传包含姓名、身份证号、手机号、住院号、条码等真实身份信息的报告；用于公开演示时应使用脱敏或模拟数据。
+
 ## 运行方式
+
+Windows 用户可双击项目根目录的 `启动项目.cmd`。脚本会使用当前项目的 `.venv`，并启动：
+
+- 前端：`http://127.0.0.1:8080/`
+- 后端：`http://127.0.0.1:8000/`
+- 接口文档：`http://127.0.0.1:8000/docs`
+
+停止服务请双击 `停止项目.cmd`。如 8000 或 8080 被其他程序占用，启动脚本会停止并显示占用信息，不会启动第二套服务或误杀其他进程。
 
 运行命令行最小 demo：
 
@@ -96,10 +111,11 @@ LLM_MODEL=qwen-plus
 python main.py "我发烧咳嗽两天了，应该挂什么科？"
 ```
 
-启动后端服务：
+如需在终端单独启动后端，请先进入克隆后的项目目录：
 
-```bash
-uvicorn backend.app:app --reload
+```powershell
+cd MedicalAgent
+.venv\Scripts\python.exe -m uvicorn backend.app:app --host 127.0.0.1 --port 8000
 ```
 
 访问接口文档：
@@ -108,7 +124,13 @@ uvicorn backend.app:app --reload
 http://127.0.0.1:8000/docs
 ```
 
-前端页面位于 `frontend/index.html`。启动后端后，可直接用浏览器打开该文件进行演示。
+也可以单独启动前端：
+
+```powershell
+.venv\Scripts\python.exe -m http.server 8080 --bind 127.0.0.1 --directory frontend
+```
+
+Linux 和 macOS 请将虚拟环境解释器路径替换为 `.venv/bin/python`。
 
 如需重建本地 RAG 向量库，可在服务启动后请求：
 
@@ -247,7 +269,7 @@ python main.py --case all
 | 科室推荐准确率 | 100% |
 | 追问判断准确率 | 100% |
 
-详细说明见 `docs/evaluation_report.md`。
+详细说明见 `docs/reports/evaluation_report.md`。
 
 ## 难点与解决方案
 
@@ -261,7 +283,7 @@ python main.py --case all
 
 ## 后续优化方向
 
-- 接入报告 OCR，支持上传图片或 PDF 报告。
+- 在现有图片化验单识别基础上补充 PDF 报告支持。
 - 建设医学知识库 RAG，提高回答可追溯性和稳定性。
 - 完善前端页面和多轮会话体验。
 - 增加 Docker 部署脚本，降低环境配置成本。
@@ -271,3 +293,7 @@ python main.py --case all
 ## 免责声明
 
 本项目仅用于学习研究和工程实践展示，不能替代医生诊断、治疗建议或真实医院分诊结果。若出现胸痛、呼吸困难、意识异常、大量出血、严重外伤等高风险症状，请立即联系急救服务或前往急诊。
+
+## 开源许可证
+
+本项目采用 [MIT License](LICENSE) 开源。使用、修改或分发本项目时，请保留原版权声明和许可证文本。

@@ -1,5 +1,6 @@
 import json
 
+from agent_core.json_utils import clean_json_text
 from agent_core.llm import call_llm
 
 
@@ -13,23 +14,6 @@ FALLBACK_RESULT = {
     "missing_info": [],
     "reason": "LLM意图识别解析失败，建议人工确认。"
 }
-
-
-def clean_json_text(text: str) -> str:
-    """
-    清洗 Qwen 可能返回的 ```json 代码块，方便 json.loads 解析。
-    """
-    text = text.strip()
-
-    if text.startswith("```"):
-        lines = text.splitlines()
-        if lines and lines[0].startswith("```"):
-            lines = lines[1:]
-        if lines and lines[-1].startswith("```"):
-            lines = lines[:-1]
-        text = "\n".join(lines).strip()
-
-    return text
 
 
 def llm_intent_tool(question: str) -> dict:

@@ -1,19 +1,7 @@
 import json
+
+from agent_core.json_utils import clean_json_text
 from agent_core.llm import call_llm
-
-
-def clean_json_text(text: str) -> str:
-    text = text.strip()
-
-    if text.startswith("```"):
-        lines = text.splitlines()
-        if lines and lines[0].startswith("```"):
-            lines = lines[1:]
-        if lines and lines[-1].startswith("```"):
-            lines = lines[:-1]
-        text = "\n".join(lines).strip()
-
-    return text
 
 
 def symptom_normalizer_tool(question: str) -> dict:

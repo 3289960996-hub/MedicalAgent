@@ -18,6 +18,7 @@ project_config/.python-version
 
 # Logs and runtime data
 logs/
+.runtime/
 .langgraph_api/
 vector_db/
 
@@ -31,7 +32,8 @@ vector_db/
 .DS_Store
 Thumbs.db
 .idea/
-.vscode/
+.vscode/*
+!.vscode/settings.json
 
 # Generated resume/export artifacts kept out of the open-source demo
 rendered_resume*/

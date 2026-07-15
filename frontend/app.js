@@ -1,5 +1,8 @@
 ﻿﻿const API_URL = "http://127.0.0.1:8000/chat";
 
+const LAB_ANALYZE_URL = "http://127.0.0.1:8000/lab-report/analyze";
+const LAB_INTERPRET_URL = "http://127.0.0.1:8000/lab-report/interpret";
+
 const DEPARTMENT_LOCATIONS = {
     "急诊科": { floor: "1F", area: "急诊分诊区", room: "急诊楼 1F", description: "急诊楼 1F 急诊分诊区" },
     "发热门诊": { floor: "1F", area: "发热门诊区", room: "门诊楼 1F", description: "门诊楼 1F 发热门诊区" },
@@ -89,8 +92,53 @@ const state = {
     orders: { filter: "全部", query: "", selectedId: "order-ent-1" },
     currentRecordId: "",
     lastFollowupAnswer: "",
-    map: { department: "导诊台", location: DEPARTMENT_LOCATIONS["导诊台"], activeFloor: "1F" }
+    map: { department: "导诊台", location: DEPARTMENT_LOCATIONS["导诊台"], activeFloor: "1F" },
+    labReport: { imageDataUrl: "", fileName: "", result: null, progress: 0, progressLabel: "" }
 };
+
+let labAnalysisProgressTimer = null;
+
+function setLabAnalysisProgress(progress, label) {
+    const value = Math.max(0, Math.min(100, Math.round(progress)));
+    state.labReport.progress = value;
+    state.labReport.progressLabel = label;
+
+    const fill = document.querySelector("[data-lab-progress-fill]");
+    const valueNode = document.querySelector("[data-lab-progress-value]");
+    const labelNode = document.querySelector("[data-lab-progress-label]");
+    if (fill) fill.style.width = `${value}%`;
+    if (valueNode) valueNode.textContent = `${value}%`;
+    if (labelNode) labelNode.textContent = label;
+
+    const legacyMeta = document.getElementById("labReportMeta");
+    if (legacyMeta && state.labReport.status === "loading") legacyMeta.textContent = label;
+}
+
+function stopLabAnalysisProgress() {
+    if (!labAnalysisProgressTimer) return;
+    window.clearInterval(labAnalysisProgressTimer);
+    labAnalysisProgressTimer = null;
+}
+
+function startLabAnalysisProgress() {
+    stopLabAnalysisProgress();
+    const startedAt = Date.now();
+    setLabAnalysisProgress(6, "正在上传图片…");
+    labAnalysisProgressTimer = window.setInterval(() => {
+        const elapsed = (Date.now() - startedAt) / 1000;
+        if (elapsed < 2) {
+            setLabAnalysisProgress(6 + elapsed * 6, "正在上传图片…");
+        } else if (elapsed < 7) {
+            setLabAnalysisProgress(20 + (elapsed - 2) * 5, "正在识别化验单指标…");
+        } else if (elapsed < 10) {
+            setLabAnalysisProgress(47 + (elapsed - 7) * 5, "正在判断指标异常…");
+        } else if (elapsed < 14) {
+            setLabAnalysisProgress(64 + (elapsed - 10) * 3, "正在检索医学知识库…");
+        } else {
+            setLabAnalysisProgress(Math.min(92, 78 + (elapsed - 14) * 0.7), "正在生成辅助解释…");
+        }
+    }, 600);
+}
 
 const PATIENTS = [
     { name: "张先生", gender: "男", age: 32, phone: "158****8806", tag: "默认就诊人", note: "近期无特殊慢病记录", height: 175, weight: 72, bloodType: "AB", allergy: "阿莫西林", history: "无", remark: "无" },
@@ -300,11 +348,28 @@ const diagnosisCard = document.getElementById("diagnosisCard");
 const diagnosisTitle = document.getElementById("diagnosisTitle");
 const diagnosisMeta = document.getElementById("diagnosisMeta");
 const diagnosisText = document.getElementById("diagnosisText");
+const labReportInput = document.getElementById("labReportInput");
+const labReportCard = document.getElementById("labReportCard");
+const labReportPreview = document.getElementById("labReportPreview");
+const labResultContent = document.getElementById("labResultContent");
+const labReviewModal = document.getElementById("labReviewModal");
+const labImageModal = document.getElementById("labImageModal");
+const resultPaneTitle = document.querySelector(".result-pane-header h1");
+const reassessBtn = document.getElementById("reassessBtn");
 
 questionInput.addEventListener("input", updateCharCount);
 questionInput.addEventListener("keydown", handleQuestionKeydown);
 submitBtn.addEventListener("click", submitTriage);
 clearBtn.addEventListener("click", clearTriage);
+labReportInput.addEventListener("change", handleLabReportUpload);
+document.getElementById("viewLabImageBtn").addEventListener("click", openLabImage);
+document.getElementById("reviewLabDataBtn").addEventListener("click", openLabReview);
+document.getElementById("closeLabReviewBtn").addEventListener("click", closeLabReview);
+document.getElementById("cancelLabReviewBtn").addEventListener("click", closeLabReview);
+document.getElementById("confirmLabReviewBtn").addEventListener("click", confirmLabReview);
+document.getElementById("closeLabImageBtn").addEventListener("click", closeLabImage);
+document.getElementById("backToTriageBtn").addEventListener("click", showTriageResultPane);
+document.getElementById("continueWithLabBtn").addEventListener("click", continueConsultationWithLab);
 followupSubmitBtn.addEventListener("click", submitFollowup);
 document.getElementById("reassessBtn").addEventListener("click", reassess);
 document.getElementById("exportBtn").addEventListener("click", exportReport);
@@ -329,6 +394,12 @@ floorList.addEventListener("click", (event) => {
 });
 bookingModal.addEventListener("click", (event) => {
     if (event.target === bookingModal) closeBooking();
+});
+labReviewModal.addEventListener("click", (event) => {
+    if (event.target === labReviewModal) closeLabReview();
+});
+labImageModal.addEventListener("click", (event) => {
+    if (event.target === labImageModal) closeLabImage();
 });
 document.querySelectorAll(".dock-action").forEach((button) => {
     button.addEventListener("click", () => {
@@ -407,6 +478,7 @@ function showFeaturePage(label) {
         config.type === "plans" ? renderPlansModule() :
         config.type === "orders" ? renderOrdersModule("全部") :
         config.type === "map" ? renderMapModule() :
+        config.type === "lab-analysis" ? renderLabAnalysisModule() :
         renderStandardModule(config);
     attachModuleHandlers(page, config);
     page.hidden = false;
@@ -419,6 +491,7 @@ function normalizeModuleLabel(label) {
     if (label.includes("地图")) return "院内地图";
     if (label.includes("报告")) return "报告查询";
     if (label.includes("支付")) return "在线支付";
+    if (label.includes("化验单")) return "化验单解读";
     return label;
 }
 
@@ -707,7 +780,11 @@ function renderRecordDetail(record) {
         <section class="records-detail">
             <div class="detail-header">
                 <div><h1>${escapeHtml(record.symptom)} · ${escapeHtml(record.department)}</h1><p>问诊时间：${escapeHtml(record.fullTime)} · 问诊时长：${escapeHtml(record.duration)}</p></div>
-                <div><button type="button">重新问诊</button><button type="button" class="ghost">导出报告</button><button type="button" class="danger">删除</button></div>
+                <div>
+                    <button type="button" data-record-action="restart" data-record-id="${escapeHtml(record.id)}">重新问诊</button>
+                    <button type="button" class="ghost" data-record-action="export" data-record-id="${escapeHtml(record.id)}">导出报告</button>
+                    <button type="button" class="danger" data-record-action="delete" data-record-id="${escapeHtml(record.id)}">删除</button>
+                </div>
             </div>
             <section class="detail-card">
                 <h2>基本信息</h2>
@@ -984,40 +1061,232 @@ function buildMapViewState(floor) {
     };
 }
 
+function getLabAnalysisViewState() {
+    const report = state.labReport.result;
+    const status = state.labReport.status || (report ? "complete" : "idle");
+    return {
+        report,
+        status,
+        statusLabel: status === "loading" ? "分析中" : status === "error" ? "识别失败" : report ? "分析完成" : "等待上传",
+        fileName: state.labReport.fileName || "",
+        imageDataUrl: state.labReport.imageDataUrl || "",
+        error: state.labReport.error || "",
+        progress: Number(state.labReport.progress || 0),
+        progressLabel: state.labReport.progressLabel || "正在准备分析…"
+    };
+}
+
+function renderLabAnalysisModule() {
+    const view = getLabAnalysisViewState();
+    const preview = view.imageDataUrl ? `
+        <div class="lab-analysis-preview">
+            <img src="${escapeHtml(view.imageDataUrl)}" alt="已上传化验单预览">
+            <div><strong>${escapeHtml(view.fileName || "已上传化验单")}</strong><small>${view.status === "loading" ? escapeHtml(view.progressLabel) : view.report ? `已识别 ${view.report.indicator_count || (view.report.indicators || []).length || 0} 项指标` : "等待重新上传"}</small></div>
+        </div>
+    ` : "";
+
+    return `
+        <div class="lab-analysis-page">
+            <div class="lab-analysis-title">
+                <div><p class="lab-analysis-eyebrow">LAB REPORT INTELLIGENCE</p><h1>化验单智能解读</h1><p>上传化验单后，系统自动识别指标与参考范围，判断异常并生成通俗、谨慎的辅助解释。</p></div>
+                <span class="lab-analysis-privacy">隐私保护 · 原图仅用于本次识别</span>
+            </div>
+            <div class="lab-analysis-grid">
+                <section class="lab-analysis-card lab-analysis-upload">
+                    <div class="lab-analysis-card-head"><h2>上传报告</h2><span class="lab-analysis-step">第 1 步</span></div>
+                    <div class="lab-analysis-dropzone">
+                        <div class="lab-analysis-upload-icon">⇧</div>
+                        <h3>${view.fileName ? "重新上传化验单" : "选择清晰的化验单图片"}</h3>
+                        <p>建议上传完整、端正、无强反光的报告图片</p>
+                        <button type="button" class="lab-analysis-upload-button" data-lab-page-action="upload">${view.fileName ? "重新选择" : "选择化验单"}</button>
+                        <div class="lab-analysis-formats"><span>JPG</span><span>PNG</span><span>WebP</span><span class="planned">PDF · 规划中</span></div>
+                        ${preview}
+                    </div>
+                    <div class="lab-analysis-hint"><b>!</b><span>医学报告可能包含敏感信息，上传前建议遮挡姓名、证件号和条形码。</span></div>
+                    <div class="lab-analysis-types"><strong>支持的常见报告类型</strong><div class="lab-analysis-chips"><span>血常规</span><span>肝功能</span><span>肾功能</span><span>血脂</span><span>血糖</span><span>甲状腺</span><span>乙肝五项</span><span>其他检验</span></div></div>
+                </section>
+                ${renderLabAnalysisReport(view)}
+                <section class="lab-analysis-card lab-analysis-flow">
+                    <div class="lab-analysis-flow-list">
+                        <div class="lab-analysis-flow-item"><i>1</i><strong>上传报告</strong><small>图片文件</small></div>
+                        <div class="lab-analysis-flow-item"><i>2</i><strong>OCR 识别</strong><small>提取指标信息</small></div>
+                        <div class="lab-analysis-flow-item"><i>3</i><strong>异常判断</strong><small>升高 / 降低</small></div>
+                        <div class="lab-analysis-flow-item"><i>4</i><strong>生成解读</strong><small>固定格式报告</small></div>
+                    </div>
+                    <div class="lab-analysis-flow-disclaimer"><strong>重要提示</strong><span>本分析仅用于辅助理解报告，不构成医疗诊断或治疗建议。</span></div>
+                </section>
+            </div>
+        </div>
+    `;
+}
+
+function renderLabAnalysisReport(view) {
+    const report = view.report || {};
+    const indicators = Array.isArray(report.indicators) ? report.indicators : [];
+    const abnormal = getAbnormalIndicators(report);
+    const reportType = report.report_type || "尚未识别";
+    const sampleInfo = typeof report.sample_info === "string" ? report.sample_info : report.sample_type || "未提供";
+    const interpretation = report.interpretation || report.abnormal_summary || "上传化验单后，系统将在这里解释异常指标的可能意义。";
+    const comprehensive = report.report?.comprehensive_analysis || {};
+    const mainAbnormalities = comprehensive.main_abnormalities || report.abnormal_summary || (abnormal.length ? `本次共识别 ${indicators.length} 项指标，其中 ${abnormal.length} 项需要关注。具体意义需结合症状、病史和医生面诊综合判断。` : "识别完成后将在这里汇总主要异常和建议关注方向。");
+    const possibleSystems = Array.isArray(comprehensive.possible_systems) ? comprehensive.possible_systems : (Array.isArray(report.possible_systems) ? report.possible_systems : []);
+    const possibleDirections = Array.isArray(comprehensive.possible_directions) ? comprehensive.possible_directions : (Array.isArray(report.possible_directions) ? report.possible_directions : []);
+    const riskLevel = comprehensive.risk_level || report.risk_level || (abnormal.length ? "建议关注" : "正常");
+    const suggestedChecks = Array.isArray(comprehensive.suggested_checks) ? comprehensive.suggested_checks : (Array.isArray(report.suggested_checks) ? report.suggested_checks : (Array.isArray(report.recommendations) ? report.recommendations : []));
+    const comprehensiveHtml = `
+        <p><strong>主要异常：</strong>${escapeHtml(mainAbnormalities)}</p>
+        <p><strong>可能涉及系统：</strong>${escapeHtml(possibleSystems.length ? possibleSystems.join("、") : "需要结合具体指标进一步判断")}</p>
+        <p><strong>可能相关方向：</strong>${escapeHtml(possibleDirections.length ? possibleDirections.join("；") : "需要结合其他指标、症状和病史判断")}</p>
+        <p><strong>风险等级：</strong>${escapeHtml(riskLevel)}</p>
+        <p><strong>建议关注检查：</strong>${escapeHtml(suggestedChecks.length ? suggestedChecks.join("；") : "建议结合检查目的咨询医生")}</p>
+    `;
+    const recommendations = Array.isArray(report.recommendations) && report.recommendations.length
+        ? report.recommendations
+        : ["识别完成后，将根据异常指标给出进一步检查和就医关注方向。"];
+    const statusClass = view.status === "loading" ? "loading" : view.status === "error" ? "error" : "";
+    const abnormalHtml = abnormal.length ? abnormal.slice(0, 8).map((item) => `
+        <div class="lab-analysis-abnormal-row"><span>${escapeHtml(item.name || "未命名指标")}</span><strong>${escapeHtml(item.result || "--")} ${escapeHtml(item.unit || "")}</strong><span>${escapeHtml(item.reference_range || "参考范围未知")}</span><em>${escapeHtml(labStatusLabel(item.status))}</em></div>
+    `).join("") : `<span class="lab-analysis-empty">${view.status === "loading" ? "正在提取报告中的检验指标…" : view.status === "error" ? escapeHtml(view.error || "识别失败，请重新上传。") : "尚未识别到异常指标。"}</span>`;
+    const explanationHtml = abnormal.length ? abnormal.slice(0, 5).map((item) => `<p><strong>${escapeHtml(item.name || "该指标")}</strong>：${escapeHtml(item.explanation || `该指标${labStatusLabel(item.status)}，可能提示相关生理状态发生变化，需结合其他指标和临床情况理解。`)}</p>`).join("") : `<p>${escapeHtml(interpretation)}</p>`;
+    const progressHtml = view.status === "loading" ? `
+        <div class="lab-analysis-progress" role="status" aria-live="polite">
+            <div class="lab-analysis-progress-head">
+                <strong data-lab-progress-label>${escapeHtml(view.progressLabel)}</strong>
+                <span data-lab-progress-value>${Math.round(view.progress)}%</span>
+            </div>
+            <div class="lab-analysis-progress-track" aria-hidden="true">
+                <i data-lab-progress-fill style="width:${Math.round(view.progress)}%"></i>
+            </div>
+            <small>正在调用多模态识别和医学知识库，通常需要几十秒，请勿关闭页面。</small>
+        </div>
+    ` : "";
+
+    return `
+        <section class="lab-analysis-card lab-analysis-report">
+            <div class="lab-analysis-report-head"><div><h2>智能分析报告</h2><p>${escapeHtml(view.fileName || "上传报告后自动生成")}</p></div><span class="lab-analysis-report-status ${statusClass}">${escapeHtml(view.statusLabel)}</span></div>
+            ${progressHtml}
+            <div class="lab-analysis-report-body">
+                <div class="lab-analysis-overview"><div><span>1. 检查类型</span><strong>${escapeHtml(reportType)}</strong></div><div><span>样本信息</span><strong>${escapeHtml(sampleInfo)}</strong></div></div>
+                <section class="lab-analysis-section abnormal"><h3><span class="lab-analysis-number">2</span>异常指标</h3><div class="lab-analysis-abnormal-list">${abnormalHtml}</div></section>
+                <section class="lab-analysis-section"><h3><span class="lab-analysis-number">3</span>指标解释</h3>${explanationHtml}</section>
+                <section class="lab-analysis-section"><h3><span class="lab-analysis-number">4</span>综合分析</h3>${comprehensiveHtml}</section>
+                <section class="lab-analysis-section"><h3><span class="lab-analysis-number">5</span>后续建议</h3><ul>${recommendations.slice(0, 5).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></section>
+                <div class="lab-analysis-disclaimer">6. 本分析仅用于辅助理解报告，不构成医疗诊断或治疗建议。</div>
+            </div>
+            <div class="lab-analysis-report-actions">
+                ${view.imageDataUrl ? `<button type="button" data-lab-page-action="view-image">查看原图</button>` : ""}
+                ${view.report ? `<button type="button" class="primary" data-lab-page-action="continue">结合症状继续问诊</button>` : ""}
+            </div>
+        </section>
+    `;
+}
+
+function labStatusLabel(status) {
+    const value = String(status || "unknown").toLowerCase();
+    if (value === "high" || value === "critical") return "升高";
+    if (value === "low") return "降低";
+    if (value === "normal") return "正常";
+    return "需要复核";
+}
+
+function isLabAnalysisWorkspaceOpen() {
+    const page = document.getElementById("moduleWorkspace");
+    return Boolean(page && !page.hidden && page.querySelector(".lab-analysis-page"));
+}
+
+function refreshLabAnalysisWorkspace() {
+    const page = document.getElementById("moduleWorkspace");
+    if (!page || page.hidden || !page.querySelector(".lab-analysis-page")) return;
+    rerenderModule(page, renderLabAnalysisModule(), "lab-analysis");
+}
+
+function rerenderModule(page, content, type) {
+    page.innerHTML = content;
+    attachModuleHandlers(page, { type });
+}
+
+function handleModuleCardSelection(page, event) {
+    const recordCard = event.target.closest("[data-record-id]");
+    if (recordCard && !event.target.closest("button")) {
+        state.records.selectedId = recordCard.dataset.recordId;
+        rerenderModule(page, renderRecordsModule(state.records.filter, state.records.selectedId, state.records.query), "records");
+        return true;
+    }
+
+    const planCard = event.target.closest("[data-plan-id]");
+    if (planCard && !event.target.closest("button")) {
+        state.plans.selectedId = planCard.dataset.planId;
+        rerenderModule(page, renderPlansModule(), "plans");
+        return true;
+    }
+
+    const orderCard = event.target.closest("[data-order-id]");
+    if (orderCard && !event.target.closest("button")) {
+        state.orders.selectedId = orderCard.dataset.orderId;
+        rerenderModule(page, renderOrdersModule(state.orders.filter, state.orders.selectedId, state.orders.query), "orders");
+        return true;
+    }
+
+    return false;
+}
+
+function handleModuleInput(page, event) {
+    if (event.target.matches(".records-side .module-search")) {
+        state.records.query = event.target.value;
+        rerenderModule(page, renderRecordsModule(state.records.filter, state.records.selectedId, state.records.query), "records");
+        const search = page.querySelector(".records-side .module-search");
+        if (search) {
+            search.focus();
+            search.setSelectionRange(search.value.length, search.value.length);
+        }
+        return;
+    }
+    if (event.target.matches(".orders-side .module-search")) {
+        state.orders.query = event.target.value;
+        rerenderModule(page, renderOrdersModule(state.orders.filter, state.orders.selectedId, state.orders.query), "orders");
+        const search = page.querySelector(".orders-side .module-search");
+        if (search) {
+            search.focus();
+            search.setSelectionRange(search.value.length, search.value.length);
+        }
+        return;
+    }
+    if (event.target.matches("[data-archive-field]")) {
+        const field = event.target.dataset.archiveField;
+        const value = event.target.value;
+        activePatient[field] = field === "height" || field === "weight" ? Number(value) : value;
+        if (field === "height" || field === "weight") updateArchiveBmi(page);
+        return;
+    }
+    if (event.target.matches('[data-plan-input="date"]')) {
+        state.plans.draftDate = event.target.value || state.plans.draftDate;
+    }
+}
+
 function attachModuleHandlers(page, config) {
     page.onclick = (event) => {
-        const recordCard = event.target.closest("[data-record-id]");
-        if (recordCard && !event.target.closest("button")) {
-            state.records.selectedId = recordCard.dataset.recordId;
-            page.innerHTML = renderRecordsModule(state.records.filter, state.records.selectedId, state.records.query);
-            attachModuleHandlers(page, { type: "records" });
-            return;
-        }
-
-        const planCard = event.target.closest("[data-plan-id]");
-        if (planCard && !event.target.closest("button")) {
-            state.plans.selectedId = planCard.dataset.planId;
-            page.innerHTML = renderPlansModule();
-            attachModuleHandlers(page, { type: "plans" });
-            return;
-        }
-
-        const orderCard = event.target.closest("[data-order-id]");
-        if (orderCard && !event.target.closest("button")) {
-            state.orders.selectedId = orderCard.dataset.orderId;
-            page.innerHTML = renderOrdersModule(state.orders.filter, state.orders.selectedId, state.orders.query);
-            attachModuleHandlers(page, { type: "orders" });
-            return;
-        }
+        if (handleModuleCardSelection(page, event)) return;
 
         const button = event.target.closest("button");
         if (!button) return;
         const label = button.textContent.trim();
 
+        if (button.dataset.labPageAction === "upload") {
+            labReportInput.click();
+            return;
+        }
+        if (button.dataset.labPageAction === "view-image") {
+            openLabImage();
+            return;
+        }
+        if (button.dataset.labPageAction === "continue") {
+            continueConsultationWithLab();
+            return;
+        }
+
         if (button.dataset.mapFloor) {
             state.map.activeFloor = button.dataset.mapFloor;
-            page.innerHTML = renderMapModule(button.dataset.mapFloor);
-            attachModuleHandlers(page, { type: "map" });
+            rerenderModule(page, renderMapModule(button.dataset.mapFloor), "map");
             return;
         }
         if (button.dataset.mapAction === "back-consult") {
@@ -1028,8 +1297,7 @@ function attachModuleHandlers(page, config) {
         if (button.dataset.mapAction === "locate") {
             const targetFloor = state.map.location?.floor || "1F";
             state.map.activeFloor = targetFloor;
-            page.innerHTML = renderMapModule(targetFloor);
-            attachModuleHandlers(page, { type: "map" });
+            rerenderModule(page, renderMapModule(targetFloor), "map");
             showToast("已定位到推荐科室所在楼层。");
             return;
         }
@@ -1052,8 +1320,7 @@ function attachModuleHandlers(page, config) {
         if (button.dataset.orderFilter) {
             state.orders.filter = button.dataset.orderFilter;
             state.orders.selectedId = "";
-            page.innerHTML = renderOrdersModule(state.orders.filter, "", state.orders.query);
-            attachModuleHandlers(page, { type: "orders" });
+            rerenderModule(page, renderOrdersModule(state.orders.filter, "", state.orders.query), "orders");
             showToast(`已筛选${state.orders.filter}订单。`);
             return;
         }
@@ -1066,16 +1333,19 @@ function attachModuleHandlers(page, config) {
         if (button.dataset.recordRisk) {
             state.records.filter = button.dataset.recordRisk;
             state.records.selectedId = "";
-            page.innerHTML = renderRecordsModule(state.records.filter, "", state.records.query);
-            attachModuleHandlers(page, { type: "records" });
+            rerenderModule(page, renderRecordsModule(state.records.filter, "", state.records.query), "records");
             showToast(`已筛选${state.records.filter}记录。`);
+            return;
+        }
+
+        if (button.dataset.recordAction) {
+            handleRecordAction(page, button);
             return;
         }
 
         if (label === "全部" || label === "待支付" || label === "已预约" || label === "已完成" || label === "已取消") {
             if (button.closest(".orders-side")) {
-                page.innerHTML = renderOrdersModule(label);
-                attachModuleHandlers(page, { type: "orders" });
+                rerenderModule(page, renderOrdersModule(label), "orders");
                 showToast(`已筛选${label}订单。`);
                 return;
             }
@@ -1145,40 +1415,7 @@ function attachModuleHandlers(page, config) {
         }
     };
 
-    page.oninput = (event) => {
-        if (event.target.matches(".records-side .module-search")) {
-            state.records.query = event.target.value;
-            page.innerHTML = renderRecordsModule(state.records.filter, state.records.selectedId, state.records.query);
-            attachModuleHandlers(page, { type: "records" });
-            const search = page.querySelector(".records-side .module-search");
-            if (search) {
-                search.focus();
-                search.setSelectionRange(search.value.length, search.value.length);
-            }
-            return;
-        }
-        if (event.target.matches(".orders-side .module-search")) {
-            state.orders.query = event.target.value;
-            page.innerHTML = renderOrdersModule(state.orders.filter, state.orders.selectedId, state.orders.query);
-            attachModuleHandlers(page, { type: "orders" });
-            const search = page.querySelector(".orders-side .module-search");
-            if (search) {
-                search.focus();
-                search.setSelectionRange(search.value.length, search.value.length);
-            }
-            return;
-        }
-        if (event.target.matches("[data-archive-field]")) {
-            const field = event.target.dataset.archiveField;
-            const value = event.target.value;
-            activePatient[field] = field === "height" || field === "weight" ? Number(value) : value;
-            if (field === "height" || field === "weight") updateArchiveBmi(page);
-            return;
-        }
-        if (event.target.matches('[data-plan-input="date"]')) {
-            state.plans.draftDate = event.target.value || state.plans.draftDate;
-        }
-    };
+    page.oninput = (event) => handleModuleInput(page, event);
 }
 
 function applyStandardModuleFilter(page, button) {
@@ -1203,6 +1440,63 @@ function applyStandardModuleFilter(page, button) {
     showToast(`已筛选${label}内容。`);
 }
 
+function handleRecordAction(page, button) {
+    const recordId = button.dataset.recordId || state.records.selectedId;
+    const record = CONSULTATION_RECORDS.find((item) => item.id === recordId);
+    if (!record) {
+        showToast("没有找到这条问诊记录。");
+        return;
+    }
+
+    if (button.dataset.recordAction === "restart") {
+        showConsultationPage();
+        questionInput.value = record.symptom;
+        questionInput.focus();
+        updateCharCount();
+        showToast("已带入原主诉，可重新开始问诊。");
+        return;
+    }
+
+    if (button.dataset.recordAction === "export") {
+        const report = [
+            "智医分诊助手 - 问诊报告",
+            `就诊人：${activePatient.name}（${activePatient.gender}，${activePatient.age}岁）`,
+            `问诊时间：${record.fullTime}`,
+            `主诉：${record.symptom}`,
+            `风险等级：${record.risk}`,
+            `推荐科室：${record.department}`,
+            `置信度：${record.confidence}`,
+            "",
+            "问诊过程：",
+            ...record.transcript.map((item, index) => `${index + 1}. ${item}`),
+            "",
+            "病情分析与导诊建议：",
+            record.analysis
+        ].join("\n");
+        const blob = new Blob([report], { type: "text/plain;charset=utf-8" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `问诊报告-${activePatient.name}-${record.department}-${Date.now()}.txt`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(link.href);
+        showToast("问诊报告已导出。");
+        return;
+    }
+
+    if (button.dataset.recordAction === "delete") {
+        const confirmed = window.confirm(`确定删除“${record.symptom}”这条问诊记录吗？`);
+        if (!confirmed) return;
+        CONSULTATION_RECORDS = CONSULTATION_RECORDS.filter((item) => item.id !== record.id);
+        persistCurrentPatientRecords();
+        const remaining = getFilteredConsultationRecords(state.records.filter, state.records.query);
+        state.records.selectedId = remaining[0]?.id || "";
+        rerenderModule(page, renderRecordsModule(state.records.filter, state.records.selectedId, state.records.query), "records");
+        showToast("问诊记录已删除。");
+    }
+}
+
 function handlePlanAction(page, button) {
     const action = button.dataset.planAction;
     const planId = button.dataset.planId;
@@ -1225,8 +1519,7 @@ function handlePlanAction(page, button) {
     }
     if (action === "done") {
         plan.status = plan.status === "已完成" ? "待处理" : "已完成";
-        page.innerHTML = renderPlansModule();
-        attachModuleHandlers(page, { type: "plans" });
+        rerenderModule(page, renderPlansModule(), "plans");
         showToast(plan.status === "已完成" ? "计划已标记完成。" : "计划已恢复为待处理。");
         return;
     }
@@ -1234,8 +1527,7 @@ function handlePlanAction(page, button) {
         const index = VISIT_PLANS.findIndex((item) => item.id === plan.id);
         if (index >= 0) VISIT_PLANS.splice(index, 1);
         state.plans.selectedId = VISIT_PLANS[index]?.id || VISIT_PLANS[index - 1]?.id || VISIT_PLANS[0]?.id || "";
-        page.innerHTML = renderPlansModule();
-        attachModuleHandlers(page, { type: "plans" });
+        rerenderModule(page, renderPlansModule(), "plans");
         showToast("计划已删除。");
     }
 }
@@ -1261,8 +1553,7 @@ function savePlanFromForm(page) {
     VISIT_PLANS.unshift(plan);
     state.plans.selectedId = plan.id;
     state.plans.draftDate = date;
-    page.innerHTML = renderPlansModule();
-    attachModuleHandlers(page, { type: "plans" });
+    rerenderModule(page, renderPlansModule(), "plans");
     showToast("已新增就诊计划。");
 }
 
@@ -1283,8 +1574,7 @@ function createPlanFromSelectedRecord(page) {
     };
     VISIT_PLANS.unshift(plan);
     state.plans.selectedId = plan.id;
-    page.innerHTML = renderPlansModule();
-    attachModuleHandlers(page, { type: "plans" });
+    rerenderModule(page, renderPlansModule(), "plans");
     showToast("已从最近问诊生成就诊计划。");
 }
 
@@ -1363,16 +1653,40 @@ function handleOrderAction(page, button) {
 }
 
 function rerenderOrders(page) {
-    page.innerHTML = renderOrdersModule(state.orders.filter, state.orders.selectedId, state.orders.query);
-    attachModuleHandlers(page, { type: "orders" });
+    rerenderModule(page, renderOrdersModule(state.orders.filter, state.orders.selectedId, state.orders.query), "orders");
+}
+
+function findActiveOrderFromRecord(record) {
+    return REGISTER_ORDERS.find((order) =>
+        order.patientName === activePatient.name &&
+        order.status !== "已取消" &&
+        (
+            order.sourceRecordId === record.id ||
+            (
+                !order.sourceRecordId &&
+                order.doctor === "待分配医生" &&
+                order.department === record.department &&
+                order.source === record.symptom
+            )
+        )
+    );
 }
 
 function createOrderFromSelectedRecord(page) {
-    const record = CONSULTATION_RECORDS.find((item) => item.id === state.records.selectedId) || CONSULTATION_RECORDS[0];
+    const record = CONSULTATION_RECORDS[0];
     if (!record) return;
+    const existingOrder = findActiveOrderFromRecord(record);
+    if (existingOrder) {
+        state.orders.selectedId = existingOrder.id;
+        state.orders.filter = "全部";
+        rerenderOrders(page);
+        showToast("该问诊已生成订单，已定位到原订单。");
+        return;
+    }
     const location = normalizeDepartmentLocation(record.department, DEPARTMENT_LOCATIONS[record.department] || {});
     const order = {
         id: `order-record-${Date.now()}`,
+        sourceRecordId: record.id,
         patientName: activePatient.name,
         status: "待支付",
         code: `MA${String(Date.now()).slice(-8)}`,
@@ -1477,7 +1791,8 @@ function getFeaturePageConfig(label) {
             focus: { title: "候诊提醒", text: "请提前 20 分钟到院取号，携带身份证或医保凭证。" },
             insights: [{ label: "退改规则", text: "真实系统需展示医院号源退改规则。" }, { label: "凭证", text: "可扩展电子就诊凭证和二维码。" }]
         },
-        "患者档案": { type: "archive", title: "患者档案" }
+        "患者档案": { type: "archive", title: "患者档案" },
+        "化验单解读": { type: "lab-analysis", title: "化验单解读" }
         ,
         "院内地图": { type: "map", title: "院内地图" }
     };
@@ -1573,24 +1888,309 @@ function refreshOpenPatientScopedModule() {
     if (page.querySelector(".records-layout")) {
         state.records.filter = "全部";
         state.records.query = "";
-        page.innerHTML = renderRecordsModule("全部", state.records.selectedId, "");
-        attachModuleHandlers(page, { type: "records" });
+        rerenderModule(page, renderRecordsModule("全部", state.records.selectedId, ""), "records");
         return;
     }
     if (page.querySelector(".archive-layout")) {
-        page.innerHTML = renderArchiveModule();
-        attachModuleHandlers(page, { type: "archive" });
+        rerenderModule(page, renderArchiveModule(), "archive");
         return;
     }
     if (page.querySelector(".plan-layout")) {
-        page.innerHTML = renderPlansModule();
-        attachModuleHandlers(page, { type: "plans" });
+        rerenderModule(page, renderPlansModule(), "plans");
         return;
     }
     if (page.querySelector(".orders-layout")) {
-        page.innerHTML = renderOrdersModule();
-        attachModuleHandlers(page, { type: "orders" });
+        rerenderModule(page, renderOrdersModule(), "orders");
     }
+}
+
+async function handleLabReportUpload(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+        showToast("仅支持 JPG、PNG 或 WebP 化验单图片。", 3200);
+        return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+        showToast("化验单图片不能超过 8MB。", 3200);
+        return;
+    }
+
+    try {
+        const imageDataUrl = await readFileAsDataUrl(file);
+        state.labReport = { imageDataUrl, fileName: file.name, result: null, status: "loading", error: "", progress: 6, progressLabel: "正在上传图片…" };
+        labReportPreview.src = imageDataUrl;
+        document.getElementById("labImageLarge").src = imageDataUrl;
+        renderLabLoading();
+        startLabAnalysisProgress();
+
+        const result = await requestJson(LAB_ANALYZE_URL, { image_data_url: imageDataUrl });
+        stopLabAnalysisProgress();
+        setLabAnalysisProgress(100, "分析完成");
+        state.labReport.result = result;
+        state.labReport.status = "complete";
+        renderLabReport(result);
+        showToast("化验单识别与解读完成。", 3200);
+    } catch (error) {
+        stopLabAnalysisProgress();
+        renderLabError(error.message || "化验单识别失败，请稍后重试。");
+        showToast(error.message || "化验单识别失败。", 3600);
+    }
+}
+
+function readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = () => reject(new Error("无法读取图片文件。"));
+        reader.readAsDataURL(file);
+    });
+}
+
+async function requestJson(url, body) {
+    const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+    });
+    let payload = {};
+    try {
+        payload = await response.json();
+    } catch (_) {
+        throw new Error("后端未返回有效数据。请确认服务已启动。");
+    }
+    if (!response.ok) throw new Error(payload.detail || payload.error || `请求失败（${response.status}）`);
+    return payload;
+}
+
+function renderLabLoading() {
+    state.labReport.status = "loading";
+    state.labReport.error = "";
+    labReportCard.hidden = false;
+    document.getElementById("labReportTitle").textContent = state.labReport.fileName || "化验单";
+    document.getElementById("labReportMeta").textContent = "正在识别图片中的检验指标…";
+    const status = document.getElementById("labReportStatus");
+    status.textContent = "识别中";
+    status.className = "lab-status loading";
+    document.getElementById("labMetricPreview").innerHTML = '<div class="lab-empty-metrics">多模态模型正在读取报告，请稍候…</div>';
+    document.getElementById("reviewLabDataBtn").disabled = true;
+    refreshLabAnalysisWorkspace();
+}
+
+function renderLabError(message) {
+    stopLabAnalysisProgress();
+    state.labReport.status = "error";
+    state.labReport.error = message;
+    const status = document.getElementById("labReportStatus");
+    status.textContent = "识别失败";
+    status.className = "lab-status error";
+    document.getElementById("labReportMeta").textContent = message;
+    document.getElementById("labMetricPreview").innerHTML = '<div class="lab-empty-metrics">请检查图片清晰度或模型配置后重新上传。</div>';
+    document.getElementById("reviewLabDataBtn").disabled = true;
+    refreshLabAnalysisWorkspace();
+}
+
+function renderLabReport(result) {
+    stopLabAnalysisProgress();
+    state.labReport.progress = 100;
+    state.labReport.progressLabel = "分析完成";
+    state.labReport.status = "complete";
+    state.labReport.error = "";
+    document.getElementById("labReportTitle").textContent = result.report_type || "化验单";
+    const verifiedText = result.verified ? " · 已人工核对" : "";
+    document.getElementById("labReportMeta").textContent = `已识别 ${result.indicator_count || 0} 项指标 · ${result.abnormal_count || 0} 项异常${verifiedText}`;
+    const status = document.getElementById("labReportStatus");
+    status.textContent = result.verified ? "已核对" : "识别完成";
+    status.className = "lab-status";
+    document.getElementById("reviewLabDataBtn").disabled = false;
+
+    const preview = document.getElementById("labMetricPreview");
+    preview.replaceChildren();
+    const abnormal = getAbnormalIndicators(result).slice(0, 3);
+    const rows = abnormal.length ? abnormal : (result.indicators || []).slice(0, 3);
+    if (!rows.length) {
+        const empty = document.createElement("div");
+        empty.className = "lab-empty-metrics";
+        empty.textContent = "未识别到可核对的检验指标，请上传更清晰的图片。";
+        preview.appendChild(empty);
+        refreshLabAnalysisWorkspace();
+        return;
+    }
+    rows.forEach((item) => {
+        const row = document.createElement("div");
+        row.className = "lab-metric-row";
+        const name = document.createElement("span");
+        name.textContent = item.name;
+        const value = document.createElement("strong");
+        value.textContent = `${item.result || "--"} ${labStatusArrow(item.status)}`.trim();
+        const unit = document.createElement("small");
+        unit.textContent = item.unit || "";
+        row.append(name, value, unit);
+        preview.appendChild(row);
+    });
+    refreshLabAnalysisWorkspace();
+}
+
+function showLabResultPane(result) {
+    finalResultContent.hidden = true;
+    resultPending.hidden = true;
+    labResultContent.hidden = false;
+    resultPaneTitle.replaceChildren(document.createTextNode("化验单解读 "));
+    const small = document.createElement("small");
+    small.textContent = "（仅供参考）";
+    resultPaneTitle.appendChild(small);
+    reassessBtn.hidden = true;
+
+    const abnormal = getAbnormalIndicators(result);
+    document.getElementById("labAbnormalCount").textContent = `${abnormal.length}项`;
+    const list = document.getElementById("labAbnormalList");
+    list.replaceChildren();
+    if (!abnormal.length) {
+        const note = document.createElement("span");
+        note.className = "lab-normal-note";
+        note.textContent = "识别结果中暂无明确异常项，仍请先核对原报告。";
+        list.appendChild(note);
+    } else {
+        abnormal.slice(0, 8).forEach((item) => {
+            const chip = document.createElement("span");
+            chip.className = "lab-abnormal-chip";
+            chip.textContent = `${item.name} ${labStatusArrow(item.status)}`;
+            list.appendChild(chip);
+        });
+    }
+    document.getElementById("labInterpretation").textContent = result.interpretation || result.abnormal_summary || "请核对指标后咨询医生。";
+    document.getElementById("labAttentionLevel").textContent = result.attention_level || "常规关注";
+    const advice = document.getElementById("labRecommendations");
+    advice.replaceChildren();
+    (result.recommendations?.length ? result.recommendations : ["携带完整报告咨询医生，并结合症状综合判断。"]).forEach((text) => {
+        const item = document.createElement("li");
+        item.textContent = text;
+        advice.appendChild(item);
+    });
+    document.getElementById("labSuggestedDepartment").textContent = `建议就诊：${result.suggested_department || "全科"}`;
+    document.getElementById("labDisclaimer").textContent = result.disclaimer || "仅供健康参考，不能替代医生诊断";
+}
+
+function showTriageResultPane() {
+    labResultContent.hidden = true;
+    resultPaneTitle.replaceChildren(document.createTextNode("分诊结果 "));
+    const small = document.createElement("small");
+    small.textContent = "（仅供参考）";
+    resultPaneTitle.appendChild(small);
+    reassessBtn.hidden = false;
+    finalResultContent.hidden = !state.result;
+    resultPending.hidden = Boolean(state.result);
+}
+
+function getAbnormalIndicators(result) {
+    return (result?.indicators || []).filter((item) => ["high", "low", "critical"].includes(item.status));
+}
+
+function labStatusArrow(status) {
+    if (status === "high") return "↑";
+    if (status === "low") return "↓";
+    if (status === "critical") return "!";
+    return "";
+}
+
+function openLabReview() {
+    const indicators = state.labReport.result?.indicators || [];
+    if (!indicators.length) {
+        showToast("当前没有可核对的识别数据。")
+        return;
+    }
+    const rows = document.getElementById("labReviewRows");
+    rows.replaceChildren();
+    indicators.forEach((indicator, index) => {
+        const row = document.createElement("tr");
+        row.dataset.index = String(index);
+        if (Number(indicator.confidence || 0) < 0.75) row.className = "low-confidence";
+        ["name", "result", "unit", "reference_range"].forEach((field) => {
+            const cell = document.createElement("td");
+            const input = document.createElement("input");
+            input.dataset.field = field;
+            input.value = indicator[field] || "";
+            input.maxLength = field === "name" ? 100 : 50;
+            cell.appendChild(input);
+            row.appendChild(cell);
+        });
+        const statusCell = document.createElement("td");
+        const select = document.createElement("select");
+        select.dataset.field = "status";
+        [["normal", "正常"], ["high", "偏高"], ["low", "偏低"], ["critical", "危急"], ["unknown", "不确定"]].forEach(([value, label]) => {
+            const option = document.createElement("option");
+            option.value = value;
+            option.textContent = label;
+            option.selected = indicator.status === value;
+            select.appendChild(option);
+        });
+        statusCell.appendChild(select);
+        row.appendChild(statusCell);
+        rows.appendChild(row);
+    });
+    labReviewModal.hidden = false;
+}
+
+function closeLabReview() {
+    labReviewModal.hidden = true;
+}
+
+async function confirmLabReview() {
+    const button = document.getElementById("confirmLabReviewBtn");
+    const indicators = [...document.querySelectorAll("#labReviewRows tr")].map((row, index) => {
+        const original = state.labReport.result.indicators[index] || {};
+        const data = { ...original, confidence: 1 };
+        row.querySelectorAll("input,select").forEach((control) => { data[control.dataset.field] = control.value.trim(); });
+        const numericValue = Number.parseFloat(data.result);
+        data.value = Number.isFinite(numericValue) ? numericValue : null;
+        return data;
+    }).filter((item) => item.name);
+    if (!indicators.length) {
+        showToast("请至少保留一项检验指标。")
+        return;
+    }
+    button.disabled = true;
+    button.textContent = "重新分析中…";
+    try {
+        const result = await requestJson(LAB_INTERPRET_URL, {
+            report_type: state.labReport.result.report_type || "化验单",
+            indicators
+        });
+        state.labReport.result = result;
+        renderLabReport(result);
+        closeLabReview();
+        showToast("已使用核对后的数据重新生成解读。", 3000);
+    } catch (error) {
+        showToast(error.message || "重新分析失败。", 3600);
+    } finally {
+        button.disabled = false;
+        button.textContent = "确认无误并重新分析";
+    }
+}
+
+function openLabImage() {
+    if (!state.labReport.imageDataUrl) return;
+    labImageModal.hidden = false;
+}
+
+function closeLabImage() {
+    labImageModal.hidden = true;
+}
+
+function continueConsultationWithLab() {
+    const result = state.labReport.result;
+    if (!result) return;
+    const abnormalNames = getAbnormalIndicators(result).slice(0, 5).map((item) => item.name).join("、");
+    questionInput.value = abnormalNames
+        ? `我的化验单提示${abnormalNames}异常，同时有以下症状：`
+        : "我已经上传并核对化验单，同时有以下症状：";
+    updateCharCount();
+    showConsultationPage();
+    document.querySelectorAll(".app-nav a").forEach((item, index) => item.classList.toggle("active", index === 0));
+    showTriageResultPane();
+    questionInput.focus();
+    showToast("请补充当前症状后发送，系统会结合化验单信息继续问诊。", 3600);
 }
 
 function createSessionId() {
@@ -1643,20 +2243,31 @@ async function submitTriage() {
         return;
     }
 
+    const questionWithLab = buildQuestionWithLabContext(question);
+    showTriageResultPane();
     state.sessionId = createSessionId();
-    state.originalQuery = question;
+    state.originalQuery = questionWithLab;
     state.initialDepartment = "";
     state.lastFollowupAnswer = "";
     startSavedConsultationRecord(question);
     document.getElementById("questionPreview").textContent = question;
     renderOptimisticFollowup(question);
     await requestTriage({
-        question,
-        original_query: question,
+        question: questionWithLab,
+        original_query: questionWithLab,
         followup_answer: "",
         initial_department: "",
         followup_done: false
     }, submitBtn);
+}
+
+function buildQuestionWithLabContext(question) {
+    const report = state.labReport.result;
+    if (!report) return question;
+    const indicators = (report.indicators || []).slice(0, 30).map((item) =>
+        `${item.name}=${item.result || "--"}${item.unit || ""}（参考范围${item.reference_range || "未知"}，${item.status || "unknown"}）`
+    );
+    return `${question}\n\n[已智能识别的化验单上下文]\n报告类型：${report.report_type || "化验单"}\n${indicators.join("；")}`;
 }
 
 async function submitFollowup() {
@@ -2313,6 +2924,7 @@ function clearTriage() {
     state.originalQuery = "";
     state.initialDepartment = "";
     state.result = null;
+    state.labReport = { imageDataUrl: "", fileName: "", result: null };
     state.awaitingFollowup = false;
     document.body.classList.remove("has-final-result");
     finalResultContent.hidden = true;
@@ -2320,6 +2932,13 @@ function clearTriage() {
     supplementCard.hidden = true;
     supplementCard.classList.remove("is-submitted");
     diagnosisCard.hidden = true;
+    labReportCard.hidden = true;
+    labResultContent.hidden = true;
+    reassessBtn.hidden = false;
+    resultPaneTitle.replaceChildren(document.createTextNode("分诊结果 "));
+    const resultTitleHint = document.createElement("small");
+    resultTitleHint.textContent = "（仅供参考）";
+    resultPaneTitle.appendChild(resultTitleHint);
     resultPending.querySelector("strong").textContent = "等待患者补充信息";
     resultPending.querySelector("p").textContent = "提交主诉后，系统会先结合病情生成追问；完成补充后再给出导诊结论、科室与院内路线。";
     questionList.innerHTML = '<p class="question-empty">请先填写患者主诉，系统将根据病情生成针对性追问。</p>';

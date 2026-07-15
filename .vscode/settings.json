@@ -1,0 +1,26 @@
+{
+    "explorer.compactFolders": true,
+    "explorer.fileNesting.enabled": true,
+    "explorer.fileNesting.expand": false,
+    "explorer.fileNesting.patterns": {
+        "README.md": "LICENSE, .env.example",
+        "pyproject.toml": "requirements.txt, requirements-test.txt",
+        "Dockerfile": "docker-compose.yml, .dockerignore",
+        ".gitignore": ".gitattributes",
+        "启动项目.cmd": "停止项目.cmd",
+        "app.py": "main.py, graph.py, medical_graph.py, langgraph.json",
+        "db.py": "models.py"
+    },
+    "files.exclude": {
+        "**/__pycache__": true,
+        "**/*.pyc": true,
+        ".agents": true,
+        ".langgraph_api": true,
+        ".pytest_cache": true,
+        ".runtime": true,
+        ".venv": true,
+        "local_workspace": true,
+        "logs": true,
+        "vector_db": true
+    }
+}

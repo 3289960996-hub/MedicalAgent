@@ -6,21 +6,26 @@ load_dotenv(Path(__file__).resolve().parents[1] / "project_config" / ".env")
 import traceback
 import uuid
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from agent_core.chat_schema import normalize_chat_result
 from agent_core.medical_graph import run_medical_graph
+from agent_core.lab_report_vision import analyze_lab_report_image, interpret_confirmed_indicators
 
 app = FastAPI(title="医疗导诊 Agent 系统")
 followup_sessions = {}
 SESSION_STORE = followup_sessions
+LOCAL_FRONTEND_ORIGINS = [
+    "http://127.0.0.1:8080",
+    "http://localhost:8080",
+]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=LOCAL_FRONTEND_ORIGINS,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -40,6 +45,15 @@ class RobotChatRequest(BaseModel):
     text: str
     terminal_id: str = "robot_001"
     location: str = "门诊大厅"
+
+
+class LabReportAnalyzeRequest(BaseModel):
+    image_data_url: str
+
+
+class LabReportInterpretRequest(BaseModel):
+    report_type: str = "化验单"
+    indicators: list[dict]
 
 
 @app.get("/")
@@ -195,9 +209,31 @@ def chat(request: ChatRequest):
     except Exception as e:
         traceback.print_exc()
         return {
-            "error": str(e),
-            "traceback": traceback.format_exc()
+            "error": "服务暂时不可用，请稍后重试。",
+            "traceback": ""
         }
+
+
+@app.post("/lab-report/analyze")
+def analyze_lab_report(request: LabReportAnalyzeRequest):
+    try:
+        return analyze_lab_report_image(request.image_data_url)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        traceback.print_exc()
+        raise HTTPException(status_code=502, detail="化验单识别服务暂时不可用，请稍后重试。") from exc
+
+
+@app.post("/lab-report/interpret")
+def interpret_lab_report(request: LabReportInterpretRequest):
+    try:
+        return interpret_confirmed_indicators(request.report_type, request.indicators)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        traceback.print_exc()
+        raise HTTPException(status_code=502, detail="化验单解读服务暂时不可用，请稍后重试。") from exc
 
 
 @app.post("/robot/chat")
@@ -222,9 +258,10 @@ def robot_chat(request: RobotChatRequest):
         }
 
     except Exception as e:
+        traceback.print_exc()
         return {
-            "error": str(e),
-            "traceback": traceback.format_exc()
+            "error": "服务暂时不可用，请稍后重试。",
+            "traceback": ""
         }
 
 
