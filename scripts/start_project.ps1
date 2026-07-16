@@ -53,6 +53,11 @@ if (-not (Test-Path -LiteralPath $Python)) {
     throw "Project virtual environment not found: $Python"
 }
 
+$mysqlBootstrap = Join-Path $PSScriptRoot "ensure_mysql.ps1"
+if (Test-Path -LiteralPath $mysqlBootstrap) {
+    & $mysqlBootstrap
+}
+
 $backendOwnerPid = Get-ListeningPid 8000
 $frontendOwnerPid = Get-ListeningPid 8080
 if ($backendOwnerPid -and $frontendOwnerPid -and (Test-Path -LiteralPath $RuntimeFile)) {
