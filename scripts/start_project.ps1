@@ -1,4 +1,4 @@
-﻿$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Stop"
 $ProjectRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $Python = Join-Path $ProjectRoot ".venv\Scripts\python.exe"
 $RuntimeDir = Join-Path $ProjectRoot ".runtime"
@@ -22,6 +22,21 @@ function Describe-Process([int]$ProcessId) {
     }
 }
 
+function Test-ManagedService([int]$ProcessId, [string]$ServiceName) {
+    try {
+        $process = Get-CimInstance Win32_Process -Filter "ProcessId=$ProcessId" -ErrorAction Stop
+        $commandLine = ([string]$process.CommandLine).ToLowerInvariant()
+        if ([string]$process.Name -ne "python.exe") { return $false }
+        if ($ServiceName -eq "backend") {
+            return $commandLine.Contains("backend.app:app") -and $commandLine.Contains("--port 8000")
+        }
+        $frontendPath = (Join-Path $ProjectRoot "frontend").ToLowerInvariant()
+        return $commandLine.Contains("http.server 8080") -and $commandLine.Contains($frontendPath)
+    } catch {
+        return $false
+    }
+}
+
 function Wait-ForUrl([string]$Url, [string]$Name) {
     for ($attempt = 1; $attempt -le 40; $attempt++) {
         try {
@@ -31,17 +46,39 @@ function Wait-ForUrl([string]$Url, [string]$Name) {
             Start-Sleep -Milliseconds 500
         }
     }
-    throw "$Name 启动后未能通过健康检查：$Url"
+    throw "$Name failed its startup health check: $Url"
 }
 
 if (-not (Test-Path -LiteralPath $Python)) {
-    throw "未找到当前项目虚拟环境：$Python"
+    throw "Project virtual environment not found: $Python"
+}
+
+$backendOwnerPid = Get-ListeningPid 8000
+$frontendOwnerPid = Get-ListeningPid 8080
+if ($backendOwnerPid -and $frontendOwnerPid -and (Test-Path -LiteralPath $RuntimeFile)) {
+    try {
+        $runtime = Get-Content -LiteralPath $RuntimeFile -Raw -Encoding UTF8 | ConvertFrom-Json
+        $runtimeRoot = [System.IO.Path]::GetFullPath([string]$runtime.projectRoot)
+        $isCurrentProject = $runtimeRoot -eq $ProjectRoot `
+            -and [int]$runtime.backendPid -eq $backendOwnerPid `
+            -and [int]$runtime.frontendPid -eq $frontendOwnerPid `
+            -and (Test-ManagedService $backendOwnerPid "backend") `
+            -and (Test-ManagedService $frontendOwnerPid "frontend")
+        if ($isCurrentProject) {
+            Write-Host "MedicalAgent is already running." -ForegroundColor Green
+            Write-Host "Frontend: http://127.0.0.1:8080/"
+            Write-Host "API docs: http://127.0.0.1:8000/docs"
+            exit 0
+        }
+    } catch {
+        # A damaged runtime record must not take ownership of unknown processes.
+    }
 }
 
 foreach ($port in 8000, 8080) {
     $ownerPid = Get-ListeningPid $port
     if ($ownerPid) {
-        throw "端口 $port 已被占用：$(Describe-Process $ownerPid)。请先运行 stop_project.ps1，或关闭占用程序后重试。"
+        throw "Port $port is already in use by $(Describe-Process $ownerPid). Run stop_project.ps1 or close that process before retrying."
     }
 }
 
@@ -65,20 +102,37 @@ try {
         -RedirectStandardOutput (Join-Path $LogDir "frontend.out.log") `
         -RedirectStandardError (Join-Path $LogDir "frontend.err.log")
 
-    Wait-ForUrl "http://127.0.0.1:8000/" "后端"
-    Wait-ForUrl "http://127.0.0.1:8080/" "前端"
+    Wait-ForUrl "http://127.0.0.1:8000/" "Backend"
+    Wait-ForUrl "http://127.0.0.1:8080/" "Frontend"
+
+    $backendListenerPid = Get-ListeningPid 8000
+    $frontendListenerPid = Get-ListeningPid 8080
+    if (-not $backendListenerPid -or -not (Test-ManagedService $backendListenerPid "backend")) {
+        throw "Backend responded, but its listening process could not be verified as part of this project."
+    }
+    if (-not $frontendListenerPid -or -not (Test-ManagedService $frontendListenerPid "frontend")) {
+        throw "Frontend responded, but its listening process could not be verified as part of this project."
+    }
 
     [PSCustomObject]@{
         projectRoot = $ProjectRoot
-        backendPid = $backend.Id
-        frontendPid = $frontend.Id
+        backendPid = $backendListenerPid
+        frontendPid = $frontendListenerPid
         startedAt = (Get-Date).ToString("o")
     } | ConvertTo-Json | Set-Content -LiteralPath $RuntimeFile -Encoding UTF8
 
-    Write-Host "MedicalAgent 已从当前项目目录启动。" -ForegroundColor Green
-    Write-Host "前端：http://127.0.0.1:8080/"
-    Write-Host "接口文档：http://127.0.0.1:8000/docs"
+    Write-Host "MedicalAgent started from the current project directory." -ForegroundColor Green
+    Write-Host "Frontend: http://127.0.0.1:8080/"
+    Write-Host "API docs: http://127.0.0.1:8000/docs"
 } catch {
+    $backendListenerPid = Get-ListeningPid 8000
+    $frontendListenerPid = Get-ListeningPid 8080
+    if ($backendListenerPid -and (Test-ManagedService $backendListenerPid "backend")) {
+        & taskkill.exe /PID $backendListenerPid /T /F | Out-Null
+    }
+    if ($frontendListenerPid -and (Test-ManagedService $frontendListenerPid "frontend")) {
+        & taskkill.exe /PID $frontendListenerPid /T /F | Out-Null
+    }
     if ($backend -and -not $backend.HasExited) { Stop-Process -Id $backend.Id -Force -ErrorAction SilentlyContinue }
     if ($frontend -and -not $frontend.HasExited) { Stop-Process -Id $frontend.Id -Force -ErrorAction SilentlyContinue }
     throw
