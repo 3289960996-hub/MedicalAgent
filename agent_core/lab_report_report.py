@@ -178,7 +178,7 @@ def normalize_report_type(value: Any, indicators: list[dict[str, Any]]) -> str:
 def _cautious_directions(value: Any, limit: int, item_limit: int) -> list[str]:
     directions = _safe_list(value, limit, item_limit)
     return [
-        item if ("可能提示" in item or "需要关注" in item) else f"可能提示与{item}相关，需结合其他指标判断。"
+        item if ("可能提示" in item or "需要关注" in item) else f"需要关注{item}，并结合其他指标判断。"
         for item in directions
     ]
 
@@ -263,4 +263,11 @@ def _safe_text(value: Any, limit: int) -> str:
     text = re.sub(r"\s+", " ", str(value or "")).strip()
     if not text or _FORBIDDEN_MEDICAL_CLAIMS.search(text):
         return ""
-    return text[:limit]
+    return _polish_uncertainty(text)[:limit]
+
+
+def _polish_uncertainty(text: str) -> str:
+    """去掉模型输出中相邻、无意义重复的不确定性修饰词。"""
+    text = re.sub(r"(可能提示)(?:\s*可能提示)+", r"\1", text)
+    text = re.sub(r"可能提示\s*可能(?:提示)?", "可能提示", text)
+    return re.sub(r"可能\s*可能", "可能", text)

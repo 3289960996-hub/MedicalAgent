@@ -18,6 +18,23 @@ from medical_knowledge.knowledge_retriever import (
 
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
+MIN_TRUSTED_CONFIDENCE = 0.75
+
+
+EXTRACTION_SAFETY_PROMPT = """
+Before extracting any values, classify the uploaded image.
+Return these additional top-level JSON fields:
+- is_lab_report: boolean; true only when the image visibly contains a medical laboratory test report/table.
+- image_quality: one of "clear", "partial", or "unreadable".
+- quality_reason: a short Chinese explanation.
+
+Safety rules:
+1. A photo, animal, person, scenery, screenshot, or unrelated document is not a lab report.
+2. Never infer a common test panel or invent plausible values from layout, context, or prior knowledge.
+3. For a stained, covered, blurred, or cropped report, extract only fields that remain directly legible.
+4. Omit every indicator whose name or result is uncertain; do not reconstruct obscured digits.
+5. If the image is not a lab report, or no indicator name-and-result pair is directly legible, return an empty indicators array.
+""".strip()
 
 
 EXTRACTION_PROMPT = """
@@ -66,15 +83,17 @@ INTERPRETATION_PROMPT = """
 }
 要求：
 1. 优先依据 knowledge_context 中匹配到的本地医学知识解释；知识不足时明确保持谨慎，不得自行补造依据。
-2. 每项解释使用“可能提示”等不确定性表述，不做疾病诊断。
-3. 不得确诊疾病、开药、推荐药物、制定治疗方案或预测疾病结果。
-4. 说明单项异常可能受生理状态、采样、饮食、运动和参考区间等因素影响。
-5. abnormal_summary 需要概括主要异常及其组合关系，不能只重复罗列异常指标。
-6. possible_systems 只填写可能涉及的身体系统或功能，例如“肝胆系统”“血液系统”“肾脏功能”“内分泌系统”。
-7. possible_directions 填写可能相关的疾病或情况方向，每一项必须使用“可能提示”或“需要关注”，禁止直接诊断。
-8. suggested_checks 只给建议关注的进一步检查、复查或就医沟通方向；recommendations 保持同样限制，不给治疗方案。
-9. 风险等级由后端规则生成，你不得自行判断或返回风险等级。
-10. 不能修改后端给出的指标状态，也不要在JSON中编造知识来源；来源由后端单独生成。
+2. indicator_explanations 只解释 high、low、critical 等异常项，不逐项复述正常指标；每项最多 2 句，按“结果判断—常见影响—复核建议”的顺序组织。
+3. 全文使用谨慎表达，但同一句最多使用一次“可能”；禁止出现“可能可能”“可能提示可能”，也不要在多个相邻分句反复使用“可能提示”。可交替使用“可受……影响”“需关注”“建议复核”等自然表达。
+4. abnormal_summary 只概括主要异常及组合关系，控制在 2 句内，不罗列全部正常指标。
+5. interpretation 控制在 3 句内：先给报告整体结论，再说明需要关注的项目，最后给复核原则；不得重复 indicator_explanations 和 abnormal_summary 的原句。
+6. possible_systems 只填写身体系统或功能名称，例如“肝胆系统”“血液系统”“肾脏功能”“内分泌系统”，不要带“可能涉及”“考虑”等前缀。
+7. possible_directions 每项优先用“需要关注……”表述，不直接写疾病诊断，每项只写一个方向。
+8. suggested_checks 给出具体的复查项目或就医沟通重点；recommendations 简短、可执行，不给治疗方案。
+9. 正常结果用一句整体概括即可；缺少参考范围或状态无法判断的项目应明确写“待复核”，不得把它描述为异常。
+10. 风险等级由后端规则生成，你不得自行判断或返回风险等级。
+11. 不能修改后端给出的指标状态，也不要在 JSON 中编造知识来源；来源由后端单独生成。
+12. 不得确诊疾病、开药、推荐药物、制定治疗方案或预测疾病结果。
 """.strip()
 
 
@@ -91,19 +110,35 @@ def analyze_lab_report_image(image_data_url: str) -> dict[str, Any]:
         messages=[{
             "role": "user",
             "content": [
-                {"type": "text", "text": EXTRACTION_PROMPT},
+                {"type": "text", "text": f"{EXTRACTION_PROMPT}\n\n{EXTRACTION_SAFETY_PROMPT}"},
                 {"type": "image_url", "image_url": {"url": normalized_url}},
             ],
         }],
         temperature=0.1,
     )
     extracted = _parse_json_object(response.choices[0].message.content)
-    indicators = apply_indicator_rules([
-        _normalize_indicator(item) for item in (extracted.get("indicators") or [])[:100]
-    ])
+    if extracted.get("is_lab_report") is not True:
+        raise ValueError("导入的图片不是化验单，请上传清晰、完整的医学检验报告。")
+    image_quality = str(extracted.get("image_quality") or "unreadable").lower()
+    if image_quality not in {"clear", "partial"}:
+        raise ValueError("化验单内容被严重遮挡或无法辨认，系统不会猜测数据，请重新拍摄后上传。")
+    normalized = [_normalize_indicator(item) for item in (extracted.get("indicators") or [])[:100]]
+    trusted = [
+        item for item in normalized
+        if item["name"] and item["result"] and item["confidence"] >= MIN_TRUSTED_CONFIDENCE
+    ]
+    if not trusted:
+        raise ValueError("未识别到可信的检验项目和结果，系统不会补造数据，请上传更清晰的化验单。")
+    indicators = apply_indicator_rules(trusted)
     report_type = normalize_report_type(extracted.get("report_type"), indicators)
-    explanation = _request_interpretation(report_type, indicators)
-    return _normalize_analysis({**extracted, **explanation, "report_type": report_type, "indicators": indicators})
+    result = _normalize_analysis({**extracted, "report_type": report_type, "indicators": indicators})
+    result.update({
+        "verified": False,
+        "requires_review": True,
+        "image_quality": image_quality,
+        "quality_reason": str(extracted.get("quality_reason") or "")[:300],
+    })
+    return result
 
 
 def interpret_confirmed_indicators(report_type: str, indicators: list[dict[str, Any]]) -> dict[str, Any]:
@@ -115,12 +150,14 @@ def interpret_confirmed_indicators(report_type: str, indicators: list[dict[str, 
     )
     report_type = normalize_report_type(report_type, safe_indicators)
     explanation = _request_interpretation(report_type, safe_indicators)
-    return _normalize_analysis({
+    result = _normalize_analysis({
         **explanation,
         "report_type": report_type,
         "indicators": safe_indicators,
         "verified": True,
     })
+    result["requires_review"] = False
+    return result
 
 
 def _request_interpretation(report_type: Any, indicators: list[dict[str, Any]]) -> dict[str, Any]:
@@ -206,7 +243,7 @@ def _normalize_indicator(item: Any) -> dict[str, Any]:
         except (TypeError, ValueError):
             value = None
     return {
-        "name": str(source.get("name") or "未识别项目")[:100],
+        "name": str(source.get("name") or "").strip()[:100],
         "result": str(source.get("result") or "")[:100],
         "value": value,
         "unit": str(source.get("unit") or "")[:50],

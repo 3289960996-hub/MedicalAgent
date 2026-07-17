@@ -74,7 +74,7 @@ def test_fixed_report_and_safety_constraints():
     assert result["report"]["knowledge_basis"] == result["knowledge_sources"]
     comprehensive = result["report"]["comprehensive_analysis"]
     assert comprehensive["possible_systems"] == ["血液系统"]
-    assert comprehensive["possible_directions"][0].startswith("可能提示")
+    assert comprehensive["possible_directions"][0].startswith(("可能提示", "需要关注"))
     assert comprehensive["risk_level"] == "建议关注"
     assert comprehensive["suggested_checks"] == ["复查血常规并关注分类计数"]
 
@@ -92,6 +92,27 @@ def test_comprehensive_risk_level_is_rule_controlled():
         "name": "白细胞", "result": "20.0 危急", "source_flag": "危急", "reference_range": "3.5-9.5"
     })], report_type="血常规")
     assert critical["risk_level"] == "建议医学评估"
+
+
+def test_repeated_uncertainty_words_are_polished():
+    indicators = [apply_indicator_rule({
+        "name": "C反应蛋白",
+        "result": "12",
+        "value": 12,
+        "reference_range": "0-10",
+    })]
+    result = build_analysis_result({
+        "indicator_explanations": [{
+            "name": "C反应蛋白",
+            "explanation": "可能可能与炎症反应有关，也可能提示可能存在近期应激。",
+        }],
+        "possible_directions": ["可能提示可能与炎症反应有关"],
+    }, indicators)
+
+    explanation = result["indicator_explanations"][0]["explanation"]
+    assert "可能可能" not in explanation
+    assert "可能提示可能" not in explanation
+    assert result["possible_directions"] == ["可能提示与炎症反应有关"]
 
 
 def test_report_type_filters_hospital_title_and_infers_panel():
