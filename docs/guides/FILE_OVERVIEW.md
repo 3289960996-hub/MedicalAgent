@@ -515,8 +515,7 @@ Python 项目元数据和 uv/现代 Python 工具的依赖配置。
 | `tools/lab_report_tool.py` | 体检/检验指标解释相关工具。 |
 | `tools/slot_check_tool.py` | 检查信息是否完整，不完整时给出追问问题。 |
 | `tools/visit_prepare_tool.py` | 给出就诊准备建议。 |
-| `tools/__init__.py` | Python 包初始化文件。 |
-| `tools/_init_.py` | 名称类似初始化文件，但不是标准的 `__init__.py`；根据当前代码无法完全确认用途。 |
+| `tools/__init__.py` | Python 包初始化文件，导出 `tools/` 下的 16 个工具。 |
 
 ## 附：`rag/` 和 `data/` 目录快速说明
 
