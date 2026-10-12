@@ -1,7 +1,7 @@
-from rag.retriever import search_docs
-
-
 def medical_rag_tool(question: str, top_k: int = 3) -> dict:
+    # Load vector-search dependencies only when retrieval is requested.
+    from rag.retriever import search_docs
+
     docs = search_docs(question, top_k=top_k)
 
     context = "\n\n".join([
